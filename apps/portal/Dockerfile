@@ -29,6 +29,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/test-venv PYTHONPATH=/repo/sandbox-images/common
 COPY apps/portal/portal/ ./portal/
 COPY apps/portal/tests/ ./tests/
 COPY sandbox-images/common-tools/ /repo/sandbox-images/common-tools/
+COPY sandbox-images/claude-code/acp_runner.py /repo/sandbox-images/claude-code/acp_runner.py
 COPY apps/portal/examples/ ./examples/
 COPY charts/ /repo/charts/
 COPY --from=browser /app/portal/static/ ./portal/static/

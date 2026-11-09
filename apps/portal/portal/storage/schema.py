@@ -71,3 +71,7 @@ requests = sa.Table(
         "sandbox_id", sa.String(36), sa.ForeignKey("sandboxes.id"), nullable=False
     ),
 )
+
+from ..integrations.caipe.schema import define_acp_bindings
+
+acp_bindings = define_acp_bindings(metadata)

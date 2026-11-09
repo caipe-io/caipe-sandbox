@@ -1,9 +1,17 @@
+acp:
+  existingSecret: ""
+  secretKey: token
+  connections: {}
 image:
   repository: ""
   digest: ""
 imagePullSecrets: []
 # Complete native Kubernetes objects. Required controllers/CRDs are operator-provided.
 extraObjects: []
+# Optional native Kubernetes objects for portal sidecars and their Service ports.
+extraContainers: []
+extraVolumes: []
+extraServicePorts: []
 # Installation toggles; externally installed integrations remain usable when disabled.
 agentSandbox:
   enabled: false

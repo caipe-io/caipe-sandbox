@@ -1,5 +1,6 @@
 """Shared routing contracts exercised with a provider other than OpenShell."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -7,16 +8,16 @@ import pytest
 from fastapi import HTTPException
 from inventory_fakes import as_sandbox
 from kubernetes.client import ApiException
-from test_portal import OWNER
-from test_profiles import store_for
-
 from portal import execution, integrations
 from portal.controls import SandboxUpdate
 from portal.integrations.agent_sandbox import execution as native_execution
 from portal.integrations.agent_sandbox.inventory import PREFIX, manifest
 from portal.integrations.agent_sandbox.service import Integration as NativeIntegration
 from portal.namespaces import namespace_name
+from portal.storage import Conflict
 from portal.storage.schema import sandboxes
+from test_portal import OWNER
+from test_profiles import store_for
 
 
 @pytest.fixture
@@ -207,6 +208,156 @@ def test_native_create_collision_does_not_reenter_portal_inventory(tamper):
     else:
         assert backend.create(body, request_id) == cr
     store.get.assert_not_called()
+
+
+def native_rbac_denial(
+    *, namespace="sandbox-example", username="system:serviceaccount:portal:portal-agent"
+):
+    error = ApiException(status=403, reason="Forbidden")
+    error.body = json.dumps(
+        {
+            "reason": "Forbidden",
+            "message": (
+                "sandboxes.agents.x-k8s.io is forbidden: User "
+                f'"{username}" cannot create resource "sandboxes" '
+                f'in API group "agents.x-k8s.io" in the namespace "{namespace}"'
+            ),
+        }
+    )
+    return error
+
+
+def native_create_fixture():
+    custom = SimpleNamespace(create_namespaced_custom_object=Mock())
+    settings = SimpleNamespace(
+        portal_namespace="portal",
+        portal_service_account="portal-agent",
+        namespace_access_role="portal-access",
+    )
+    backend = NativeIntegration(
+        SimpleNamespace(settings=settings), catalog=SimpleNamespace(custom=custom)
+    )
+    return (
+        backend,
+        custom,
+        {"metadata": {"namespace": "sandbox-example", "name": "test-agent"}},
+    )
+
+
+def test_native_create_retries_only_bootstrap_rbac_denial_on_dry_run(monkeypatch):
+    backend, custom, body = native_create_fixture()
+    result = {"metadata": {"name": "test-agent", "uid": "uid-example"}}
+    custom.create_namespaced_custom_object.side_effect = [
+        native_rbac_denial(),
+        native_rbac_denial(),
+        body,
+        result,
+    ]
+    sleep = Mock()
+    monkeypatch.setattr("portal.integrations.agent_sandbox.service.time.sleep", sleep)
+    check = Mock()
+
+    assert backend._create(body, "request-example", check) == result
+    calls = custom.create_namespaced_custom_object.call_args_list
+    assert len(calls) == 4
+    assert [c.kwargs.get("dry_run") for c in calls] == ["All", "All", "All", None]
+    assert all(c.kwargs["field_validation"] == "Strict" for c in calls)
+    assert check.call_count == 4  # each attempt and the final mutation
+    assert [c.args[0] for c in sleep.call_args_list] == [0.1, 0.2]
+
+
+def test_portal_create_recovers_from_new_namespace_rbac_delay(monkeypatch):
+    store, kube = store_for()
+    original = kube.create_namespaced_custom_object
+    dry_runs = []
+
+    def create(group, version, namespace, plural, body, **kwargs):
+        if kwargs.get("dry_run") == "All":
+            dry_runs.append(namespace)
+            if len(dry_runs) < 3:
+                settings = store.settings
+                raise native_rbac_denial(
+                    namespace=namespace,
+                    username=f"system:serviceaccount:{settings.portal_namespace}:{settings.portal_service_account}",
+                )
+        return original(group, version, namespace, plural, body, **kwargs)
+
+    kube.create_namespaced_custom_object = Mock(side_effect=create)
+    monkeypatch.setattr("time.sleep", Mock())
+    sandbox = store.create(OWNER)
+
+    assert sandbox.reference["metadata"]["uid"]
+    assert len(dry_runs) == 3
+    assert len(kube.items) == 1  # Exactly one native allocation was created.
+
+
+def test_persistent_bootstrap_rbac_denial_is_bounded_and_never_creates(monkeypatch):
+    backend, custom, body = native_create_fixture()
+    custom.create_namespaced_custom_object.side_effect = native_rbac_denial()
+    sleep = Mock()
+    monkeypatch.setattr("portal.integrations.agent_sandbox.service.time.sleep", sleep)
+    check = Mock()
+
+    with pytest.raises(HTTPException) as error:
+        backend._create(body, "request-example", check)
+    assert error.value.status_code == 503
+    assert "permission" in error.value.detail.lower()
+    assert "system:serviceaccount" not in error.value.detail
+    calls = custom.create_namespaced_custom_object.call_args_list
+    assert len(calls) == 6 and all(c.kwargs.get("dry_run") == "All" for c in calls)
+    assert check.call_count == 6 and sleep.call_count == 5
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ApiException(status=422, reason="Invalid"),
+        ApiException(status=403, reason="Forbidden"),
+        native_rbac_denial(namespace="another-sandbox"),
+        native_rbac_denial(username="system:serviceaccount:other:other"),
+    ],
+)
+def test_unrelated_native_denials_are_not_retried(monkeypatch, error):
+    backend, custom, body = native_create_fixture()
+    custom.create_namespaced_custom_object.side_effect = error
+    sleep = Mock()
+    monkeypatch.setattr("portal.integrations.agent_sandbox.service.time.sleep", sleep)
+
+    with pytest.raises(ApiException):
+        backend._create(body, "request-example", Mock())
+    assert custom.create_namespaced_custom_object.call_count == 1
+    assert custom.create_namespaced_custom_object.call_args.kwargs["dry_run"] == "All"
+    sleep.assert_not_called()
+
+
+def test_native_create_checks_lease_again_before_mutation(monkeypatch):
+    backend, custom, body = native_create_fixture()
+    custom.create_namespaced_custom_object.side_effect = [native_rbac_denial(), body]
+    monkeypatch.setattr("portal.integrations.agent_sandbox.service.time.sleep", Mock())
+    check = Mock(side_effect=[None, None, Conflict("lease lost")])
+
+    with pytest.raises(Conflict, match="lease lost"):
+        backend._create(body, "request-example", check)
+    assert custom.create_namespaced_custom_object.call_count == 2
+    assert all(
+        c.kwargs.get("dry_run") == "All"
+        for c in custom.create_namespaced_custom_object.call_args_list
+    )
+
+
+def test_mutating_native_create_denial_is_never_retried(monkeypatch):
+    backend, custom, body = native_create_fixture()
+    custom.create_namespaced_custom_object.side_effect = [body, native_rbac_denial()]
+    sleep = Mock()
+    monkeypatch.setattr("portal.integrations.agent_sandbox.service.time.sleep", sleep)
+
+    with pytest.raises(ApiException):
+        backend._create(body, "request-example", Mock())
+    assert [
+        c.kwargs.get("dry_run")
+        for c in custom.create_namespaced_custom_object.call_args_list
+    ] == ["All", None]
+    sleep.assert_not_called()
 
 
 def test_new_backend_owns_namespace_details(another_runtime):

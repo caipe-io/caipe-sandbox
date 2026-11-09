@@ -398,20 +398,22 @@ def test_native_validation_precedes_persisted_creation():
     assert create.call_args_list[1].kwargs == {"field_validation": "Strict"}
 
 
-@pytest.mark.parametrize("during_dry_run", [True, False])
-def test_creation_waits_for_namespace_rbac_without_duplicate_allocation(
-    monkeypatch, during_dry_run
-):
+def test_creation_waits_for_exact_namespace_rbac_denial_on_dry_run(monkeypatch):
+    from test_integrations import native_rbac_denial
+
     store, kube = store_for()
     original = kube.create_namespaced_custom_object
     rejected = False
 
-    def delayed_grant(*args, **kwargs):
+    def delayed_grant(group, version, namespace, *args, **kwargs):
         nonlocal rejected
-        if not rejected and (kwargs.get("dry_run") == "All") == during_dry_run:
+        if not rejected and kwargs.get("dry_run") == "All":
             rejected = True
-            raise ApiException(403)
-        return original(*args, **kwargs)
+            raise native_rbac_denial(
+                namespace=namespace,
+                username=f"system:serviceaccount:{store.settings.portal_namespace}:{store.settings.portal_service_account}",
+            )
+        return original(group, version, namespace, *args, **kwargs)
 
     monkeypatch.setattr(kube, "create_namespaced_custom_object", delayed_grant)
     sleep = Mock()
@@ -420,17 +422,12 @@ def test_creation_waits_for_namespace_rbac_without_duplicate_allocation(
     assert sandbox.record.binding is not None
     assert sandbox.record.operation is None
     assert len(kube.items) == len(store.metadata.list_sandboxes()) == 1
-    sleep.assert_called_once_with(0.2)
+    sleep.assert_called_once_with(0.1)
 
 
-@pytest.mark.parametrize(
-    ("status", "attempts", "response"), [(403, 6, 503), (500, 1, 503), (422, 1, 422)]
-)
-def test_creation_permission_wait_is_bounded_and_does_not_retry_other_errors(
-    monkeypatch, status, attempts, response
-):
+@pytest.mark.parametrize("status,response", [(403, 503), (500, 503), (422, 422)])
+def test_creation_does_not_retry_other_errors(monkeypatch, status, response):
     store, kube = store_for()
-    original = kube.create_namespaced_custom_object
     create = Mock(side_effect=ApiException(status))
     monkeypatch.setattr(kube, "create_namespaced_custom_object", create)
     sleep = Mock()
@@ -438,23 +435,9 @@ def test_creation_permission_wait_is_bounded_and_does_not_retry_other_errors(
     with pytest.raises(HTTPException) as error:
         store.create(OWNER, profile_id="terminal")
     assert error.value.status_code == response
-    if status == 403:
-        assert "namespace permissions" in error.value.detail
-        assert "Use Retry" in error.value.detail
-        assert "administrator" in error.value.detail
-    assert create.call_count == attempts
-    assert sleep.call_count == attempts - 1
+    assert create.call_count == 1
+    sleep.assert_not_called()
     assert not kube.items
-    if status == 403:
-        record = store.metadata.list_sandboxes()[0]
-        assert record.operation.state == "needs_attention"
-        assert record.operation.error == error.value.detail
-        assert store.status_view(store.get(str(record.id), OWNER))["state"] == "Error"
-        monkeypatch.setattr(kube, "create_namespaced_custom_object", original)
-        recovered = store.retry(str(record.id), OWNER)
-        assert recovered.record.id == record.id
-        assert recovered.record.operation is None
-        assert len(kube.items) == len(store.metadata.list_sandboxes()) == 1
 
 
 def test_per_sandbox_quota_is_shared_across_owner_namespaces():

@@ -3,6 +3,7 @@
 import hashlib
 import json
 from copy import deepcopy
+from pathlib import PurePosixPath
 from typing import Literal
 
 from fastapi import HTTPException
@@ -101,6 +102,22 @@ class Terminal(BaseModel):
         return self
 
 
+class ACPProcess(BaseModel):
+    """A profile-owned executable, never a command supplied by a client."""
+
+    model_config = ConfigDict(extra="forbid")
+    command: Command
+    workspace_root: str = Field(pattern=r"^/[^\x00\r\n]+$", max_length=1024)
+
+    @model_validator(mode="after")
+    def bounded(self):
+        if not self.command[0] or "/../" in self.workspace_root + "/":
+            raise ValueError(
+                "ACP requires an executable and an absolute workspace root"
+            )
+        return self
+
+
 class Profile(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: Identifier
@@ -112,6 +129,7 @@ class Profile(BaseModel):
     terminal: Terminal = Field(default_factory=Terminal)
     helpers: list[Helper] = Field(default_factory=list, max_length=16)
     ui: ProfileUI | None = None
+    acp: ACPProcess | None = None
 
     @model_validator(mode="after")
     def supported(self):
@@ -123,6 +141,35 @@ class Profile(BaseModel):
         if self.envoyEgress is not None:
             raise ValueError(
                 "envoyEgress is deployment-owned and is not integrated yet"
+            )
+        if self.acp and self.agentSandbox:
+            hosts = (
+                self.agentSandbox.spec.get("podTemplate", {})
+                .get("spec", {})
+                .get("containers", [])
+            )
+            mounts = next(
+                (
+                    host.get("volumeMounts", [])
+                    for host in hosts
+                    if host.get("name") == "host"
+                ),
+                [],
+            )
+            if not any(
+                mount.get("name") == "home"
+                and not mount.get("readOnly")
+                and PurePosixPath(self.acp.workspace_root).is_relative_to(
+                    PurePosixPath(mount.get("mountPath", "relative"))
+                )
+                for mount in mounts
+            ):
+                raise ValueError(
+                    "ACP workspace_root must be inside the writable persistent home mount"
+                )
+        if self.acp and not self.agentSandbox:
+            raise ValueError(
+                "ACP coding profiles currently require the qualified Agent Sandbox backend; use a direct agentSandbox profile"
             )
         if len({h.id for h in self.helpers}) != len(self.helpers):
             raise ValueError("Helper IDs must be unique within a profile")

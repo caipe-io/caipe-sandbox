@@ -811,7 +811,7 @@ def test_generic_chart_has_no_workload_consumer_environment_or_secret_write_gran
 def test_removed_global_workload_settings_are_rejected_by_chart(tmp_path, settings):
     result = render(tmp_path, settings)
     assert result.returncode != 0
-    assert "Additional property" in result.stderr
+    assert "additional propert" in result.stderr.lower()
 
 
 @pytest.mark.parametrize(
@@ -1076,3 +1076,22 @@ def test_bundled_openshell_requires_driver_attachment_approval_for_pvc_mode(tmp_
         },
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_optional_portal_sidecar_and_service_ports(tmp_path):
+    container = {
+        "name": "internal-tls",
+        "image": "example.invalid/proxy@sha256:" + "1" * 64,
+        "ports": [{"name": "internal-tls", "containerPort": 8443}],
+        "volumeMounts": [{"name": "internal-tls", "mountPath": "/tls", "readOnly": True}],
+    }
+    volume = {"name": "internal-tls", "secret": {"secretName": "portal-tls"}}
+    port = {"name": "internal-tls", "port": 8443, "targetPort": "internal-tls"}
+    result = render(tmp_path, {}, extraContainers=[container], extraVolumes=[volume], extraServicePorts=[port])
+    assert result.returncode == 0, result.stderr
+    objects = [o for o in yaml.safe_load_all(result.stdout) if o]
+    pod = next(o for o in objects if o['kind'] == 'Deployment')['spec']['template']['spec']
+    service = next(o for o in objects if o['kind'] == 'Service' and o['metadata']['name'] == 'portal')
+    assert container in pod['containers']
+    assert volume in pod['volumes']
+    assert port in service['spec']['ports']

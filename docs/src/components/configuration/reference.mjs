@@ -52,6 +52,17 @@ export const groups = [
     "Catalog edits affect new sandboxes. Existing sandboxes retain their applied snapshot.",
   ),
   group(
+    "profile-acp",
+    "profile",
+    "ACP coding process",
+    /^acp\./,
+    "Profile administrator",
+    ["portal", "database", "guest"],
+    "The portal admits a registered private Agent Sandbox and launches the profile-owned command through the supervised ACP runner. Runtime and network controls remain independently enforced.",
+    "Deployment-managed profile; callers cannot choose an executable or workspace path.",
+    "Existing allocations retain their applied profile snapshot. A changed configuration requires a newly qualified connection.",
+  ),
+  group(
     "profile-terminal",
     "profile",
     "Terminal & helpers",
@@ -83,6 +94,17 @@ export const groups = [
     "The portal validates profile definitions and the default profile ID at startup.",
     "Deployment/GitOps only; engineers select entries.",
     "Chart updates roll out the catalog. Existing saved configurations are not silently rewritten.",
+  ),
+  group(
+    "platform-acp",
+    "deployment",
+    "ACP connections",
+    /^acp\./,
+    "Platform operator",
+    ["helm", "portal", "database"],
+    "The private data plane authenticates the service and checks the admitted caller, sandbox UID and configuration revision. TLS and network isolation require operator configuration.",
+    "Register connections in deployment configuration and supply the service credential through a Kubernetes Secret.",
+    "Changes apply on portal rollout; active or unconfirmed process fences are retained until confirmed drain or operator reconciliation.",
   ),
   group(
     "platform-sandbox",
@@ -219,13 +241,13 @@ export const groups = [
   group(
     "platform-extra",
     "deployment",
-    "Additional Kubernetes objects",
-    /^extraObjects$/,
+    "Additional Kubernetes objects & portal sidecars",
+    /^(extraObjects|extraContainers|extraVolumes|extraServicePorts)$/,
     "Platform operator",
     ["helm", "kubernetes"],
-    "Kubernetes APIs and installed controllers validate supplied complete objects. No Helm tpl evaluation is performed on their contents.",
+    "Kubernetes APIs and installed controllers validate supplied objects. Sidecars share the portal Pod and require operator-managed security and network controls. No Helm tpl evaluation is performed on their contents.",
     "Deployment-managed.",
-    "Objects are installed with this Helm release; they are not automatically copied into future sandbox namespaces.",
+    "Objects are installed with this Helm release; Pod and Service additions roll out the portal and are not copied into sandbox namespaces.",
   ),
   group(
     "state-admin",
@@ -305,6 +327,16 @@ const notes = {
     "Native OpenShell SandboxSpec, not a Kubernetes PodSpec. Requires template.image, command and policy.version=1. Resources map to template.resources; runtime uses template.runtime_class_name. Caller driver_config is rejected. Filesystem/process controls are creation-time; supported network edits are retained as overrides.",
   envoyEgress:
     "Reserved field only: non-null values are rejected. Envoy integration is deferred, not implemented.",
+  "acp.command":
+    "Profile-owned executable and argument vector launched by the supervised ACP runner inside the sandbox. Supply an executable present in the coding image; clients cannot override it.",
+  "acp.workspace_root":
+    "Absolute ACP workspace path inside the writable persistent home mount. The worker profile must use the same path; it is retained with the applied profile.",
+  "acp.existingSecret":
+    "Existing Kubernetes Secret holding the private ACP service credential. Required when connections are configured; keep its value out of chart values and sandbox workloads.",
+  "acp.secretKey":
+    "Key in acp.existingSecret containing the ACP service token; defaults to token.",
+  "acp.connections":
+    "Operator-admitted connection aliases and their owner, verified CAIPE subject, sandbox name, exact native UID and approved configuration revision. Empty disables registered connections; do not put credentials in this object.",
   "terminal.command":
     "Argument vector for a new shell, defaulting to /bin/sh -i. It opens an executable in the existing workload; it does not keep the workload alive.",
   helpers:
@@ -525,6 +557,12 @@ const notes = {
     "Native gateway workspace mode. The portal reference deployment uses operator-managed namespaces.",
   "openShell.server.drivers.kubernetes.operatorNamespaceLabel":
     "Native label selector for gateway operator-mode workspaces; align with settings.openShell.namespaceLabel.",
+  extraContainers:
+    "Optional native container objects added to the portal Pod, such as a TLS proxy. The operator supplies and secures their images and settings; names must not collide with chart-managed containers.",
+  extraVolumes:
+    "Optional native Kubernetes volumes added to the portal Pod for operator-provided sidecars. Do not duplicate chart-managed volume names.",
+  extraServicePorts:
+    "Optional native Kubernetes Service ports for portal sidecars. Restrict access and configure authentication separately; a port does not itself secure traffic.",
   extraObjects:
     "Complete native objects such as an ExternalSecret. Their controllers must already exist; this does not install Vault, cert-manager, a storage driver or an ingress controller.",
 };
@@ -552,6 +590,10 @@ const envValues = {
     "Chart fixes one ASGI application worker per Pod. Scale PostgreSQL-backed replicas rather than adding workers against SQLite.",
   UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN:
     "shutdown.serverGraceSeconds supplies the server's native shutdown budget.",
+  ACP_CONNECTIONS:
+    "acp.connections encoded as JSON; contains nonsecret operator-admitted connection metadata.",
+  ACP_SERVICE_TOKEN:
+    "Secret reference: acp.existingSecret / acp.secretKey. The private data plane requires a distinct service token of at least 32 characters when connections are configured.",
   DATABASE_URL: "database.url / database.existingSecret",
   DATABASE_BACKEND: "Derived from database mode by Helm",
   OPERATION_LEASE_SECONDS: "settings.operationLeaseSeconds",

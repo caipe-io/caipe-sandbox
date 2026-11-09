@@ -24,6 +24,14 @@ class Conflict(StorageError):
     """A request, revision or native identity conflicts with a saved record."""
 
 
+class ACPBusy(Conflict):
+    """The same private binding still has an active or unconfirmed producer."""
+
+
+class ACPBindingConflict(Conflict):
+    """The environment belongs to a different immutable execution binding."""
+
+
 class SchemaMismatch(StorageError):
     """The database schema is incompatible with this portal image."""
 
@@ -109,6 +117,22 @@ class PortalControls(BaseModel):
 
 class MetadataStore(Protocol):
     """Shared guarantees; authorization and provider calls belong to the caller."""
+
+    def register_metadata_integration(
+        self, integration_id: str, *, tables: tuple, cleanup_sandbox
+    ) -> None:
+        """Declare integration-owned tables and an idempotent deletion hook."""
+        ...
+
+    def admit_acp(self, identity: dict[str, str], run_id: str) -> str:
+        """Bind one conversation; reject active or unconfirmed processes."""
+        ...
+
+    def finish_acp(self, sandbox_uid: str, run_id: str, token: str) -> bool:
+        """Release only the exact process after acknowledged remote drain."""
+        ...
+
+    def acp_binding(self, sandbox_uid: str) -> dict[str, str | None] | None: ...
 
     def reserve_create(
         self,

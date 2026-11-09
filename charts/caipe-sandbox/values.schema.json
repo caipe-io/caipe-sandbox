@@ -2,6 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "extraContainers": {"type": "array", "items": {"type": "object"}},
+    "extraVolumes": {"type": "array", "items": {"type": "object"}},
+    "extraServicePorts": {"type": "array", "items": {"type": "object"}},
     "extraObjects": {
       "type": "array",
       "items": {"type": "object"}
@@ -79,11 +82,20 @@
       ],
       "properties": {
         "allowedStrategies": {
-          "type": ["array", "null"],
+          "type": [
+            "array",
+            "null"
+          ],
           "minItems": 1,
           "maxItems": 2,
           "uniqueItems": true,
-          "items": {"type": "string", "enum": ["perUser", "perSandbox"]}
+          "items": {
+            "type": "string",
+            "enum": [
+              "perUser",
+              "perSandbox"
+            ]
+          }
         },
         "strategy": {
           "type": "string",
@@ -261,6 +273,30 @@
             "properties": {
               "spec": {
                 "type": "object"
+              }
+            }
+          },
+          "acp": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "command",
+              "workspace_root"
+            ],
+            "properties": {
+              "command": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "string",
+                  "maxLength": 1024
+                }
+              },
+              "workspace_root": {
+                "type": "string",
+                "pattern": "^/[^\\x00\\r\\n]+$",
+                "maxLength": 1024
               }
             }
           }
@@ -641,12 +677,80 @@
           ]
         },
         "rollingUpdate": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
-          "required": ["maxUnavailable", "maxSurge"],
+          "required": [
+            "maxUnavailable",
+            "maxSurge"
+          ],
           "properties": {
-            "maxUnavailable": {"$ref": "#/definitions/IntOrPercent"},
-            "maxSurge": {"$ref": "#/definitions/IntOrPercent"}
+            "maxUnavailable": {
+              "$ref": "#/definitions/IntOrPercent"
+            },
+            "maxSurge": {
+              "$ref": "#/definitions/IntOrPercent"
+            }
+          }
+        }
+      }
+    },
+    "acp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "secretKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "connections": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "owner",
+              "owner_subject",
+              "sandbox_name",
+              "sandbox_uid",
+              "policy_revision"
+            ],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 254
+              },
+              "owner_subject": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 254
+              },
+              "sandbox_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 36
+              },
+              "sandbox_uid": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "policy_revision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
           }
         }
       }
@@ -656,8 +760,14 @@
   "definitions": {
     "IntOrPercent": {
       "anyOf": [
-        {"type": "integer", "minimum": 0},
-        {"type": "string", "pattern": "^(100|[0-9]{1,2})%$"}
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^(100|[0-9]{1,2})%$"
+        }
       ]
     },
     "ComputeResources": {

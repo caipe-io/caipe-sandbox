@@ -1,0 +1,55 @@
+# Example profile. Replace the image with an immutable coding image digest.
+settings:
+  runtimeClass: kata-qemu
+namespace:
+  strategy: perSandbox
+  allowedStrategies: [perSandbox]
+profiles:
+  - id: claude-coding
+    title: Claude coding sandbox (experimental)
+    description: Private persistent Claude ACP environment for one CAIPE conversation. Create here, then ask an operator to register your connection.
+    acp:
+      command: [claude-agent-acp]
+      workspace_root: /home/sandbox/caipe
+    agentSandbox:
+      spec:
+        podTemplate:
+          spec:
+            containers:
+              - name: host
+                image: example.invalid/agent-sandbox-claude-code@sha256:0000000000000000000000000000000000000000000000000000000000000000
+                command: [sandbox-start]
+                workingDir: /home/sandbox
+                env:
+                  - name: HOME
+                    value: /home/sandbox
+                  - name: ANTHROPIC_BASE_URL
+                    value: https://model-gateway.example.test
+                  - name: ANTHROPIC_AUTH_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: approved-coding-model
+                        key: token
+                  # Provision this model-only Secret in the sandbox's namespace
+                  # through the operator's normal secret/workload identity tooling.
+                  # It cannot authorize CAIPE, the portal or orchestration APIs.
+                  # Never mount a CAIPE service token, MongoDB URI or user bearer here.
+                volumeMounts:
+                  - name: home
+                    mountPath: /home/sandbox
+    terminal:
+      command: [bash, -l]
+    helpers:
+      - id: workspace
+        title: Open workspace
+        icon: folder
+        script: |
+          cd "$HOME"
+          exec bash -l
+defaultProfile: claude-coding
+acp:
+  existingSecret: ""
+  secretKey: token
+  # Configure after creation using Connect to CAIPE's nonsecret registration reference.
+  # The original CAIPE subject must be supplied by the operator, not inferred from email.
+  connections: {}

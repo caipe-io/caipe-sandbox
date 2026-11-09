@@ -74,6 +74,8 @@ class Settings:
     caipe_verification_key: str = field(default="", repr=False)
     terminal_url: str = ""
     base_path: str = "/agent-sandbox-portal"
+    acp_connections: str = "{}"
+    acp_service_token: str = field(default="", repr=False)
 
     @classmethod
     def from_env(cls):

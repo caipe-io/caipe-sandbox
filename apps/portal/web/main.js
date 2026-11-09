@@ -10,6 +10,7 @@ import { restartWarning } from "./restart-warning.js";
 import { terminalText, terminalFilename } from "./terminal-output.js";
 import { helperButton, cardHelperGroups } from "./helper-view.js";
 import { sandboxConfiguration, profileDetails } from "./configuration-view.js";
+import { acpConnectionView } from "./acp-view.js";
 import { filterSandboxes, inventoryProfiles } from "./inventory-filter.js";
 import { resourceInputs } from "./resource-controls.js";
 import { integrationBadges, integrationTooltips } from "./integration-badges.js";
@@ -459,8 +460,9 @@ function sandboxCard(s) {
       <div class="capacity" title="Persistent disk"><span>${icon("disk")}Disk</span><strong>${esc(a.workspace_gib)}<small>GiB</small></strong></div>
     </div>` : ""}
     <section class="helper-section" aria-label="Profile helpers" ${helpers ? "" : "hidden"}>${helpers}</section>
-    <div class="machine-actions">${button("terminal","Open terminal","terminal",!running,"terminal-button")}</div>
+    <div class="machine-actions">${s.acp_available && s.can_manage ? button("acp-connection","Connect to CAIPE","caipe") : ""}${button("terminal","Open terminal","terminal",!running,"terminal-button")}</div>
     <footer class="machine-footer">${sandboxMetadata(s)}</footer>
+
   </article>`;
 }
 
@@ -803,6 +805,12 @@ byId("create-form").addEventListener("input", () => { creationId = crypto.random
 function fillNamespaceChoices() {
   const input = byId("sandbox-namespace");
   const profile = profiles.find(item => item.id === byId("sandbox-profile").value);
+  if (profile?.acp_available) {
+    input.innerHTML = '<option value="">New private namespace for this coding sandbox</option>';
+    input.disabled = true;
+    input.onchange();
+    return;
+  }
   input.innerHTML = namespaceOptions(availableNamespaces, profile?.provider, namespaceChoices, currentUser);
   if (namespaceDefault === "perUser" && input.options.length > 1) input.selectedIndex = input.options[0].value ? 0 : 1;
   input.disabled = input.options.length < 2;
@@ -821,7 +829,8 @@ byId("create-form").onsubmit = async (event) => {
     const resources = resourceInput("create");
     const selected = byId("sandbox-profile").selectedOptions[0];
     const namespace = byId("sandbox-namespace").value;
-    await api("/sandboxes", "POST", {title, request_id: creationId, resources, profile:selected.value, profile_revision:selected.dataset.revision, integrations:creationIntegrations?.read() || {}, namespace_strategy:namespace ? "perUser" : namespaceChoices.includes("perSandbox") ? "perSandbox" : "perUser", ...(namespace ? {namespace} : {})});
+    const privateACP = profiles.find(profile => profile.id === selected.value)?.acp_available;
+    await api("/sandboxes", "POST", {title, request_id: creationId, resources, profile:selected.value, profile_revision:selected.dataset.revision, integrations:creationIntegrations?.read() || {}, namespace_strategy:privateACP ? "perSandbox" : namespace ? "perUser" : namespaceChoices.includes("perSandbox") ? "perSandbox" : "perUser", ...(namespace ? {namespace} : {})});
     creationId = crypto.randomUUID();
     byId("sandbox-name").value = "";
     byId("create-dialog").close();
@@ -996,6 +1005,11 @@ async function handleAction(event) {
     try {
       await loadSandboxConfiguration(id, namespace);
     } catch (err) { error(err); }
+    return;
+  }
+  if (action === "acp-connection") {
+    try { showConfiguration("Connect this sandbox to CAIPE", acpConnectionView(await api(`/sandboxes/${encodeURIComponent(id)}/acp`))); }
+    catch (err) { error(err); }
     return;
   }
   if (action === "workspace") {

@@ -4,9 +4,9 @@ import hashlib
 import json
 import logging
 import uuid
-from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
@@ -26,6 +26,8 @@ from .controls import (
 )
 from .coordination import claim
 from .integrations import Integrations, prepare_creation, sandbox_ui
+from .integrations.caipe.storage import OWNED_TABLES as CAIPE_TABLES
+from .integrations.caipe.storage import cleanup_sandbox as cleanup_caipe_sandbox
 from .integrations.errors import CreationRejected
 from .inventory import Sandbox
 from .namespace_access import NamespaceAccess
@@ -62,6 +64,13 @@ class Store:
                 url=settings.database_url, expected_backend=settings.database_backend
             )
         )
+        # Disabled integrations retain their data and process fences.
+        if callable(
+            getattr(self.metadata, "register_metadata_integration", None)
+        ) and json.loads(settings.acp_connections):
+            self.metadata.register_metadata_integration(
+                "caipe", tables=CAIPE_TABLES, cleanup_sandbox=cleanup_caipe_sandbox
+            )
         self.owns_metadata = metadata is None
         self.controls = controls or Controls(self.metadata)
         self.integrations = integrations or Integrations(self, custom, core, namespaces)
@@ -181,12 +190,24 @@ class Store:
             except (HTTPException, OSError) as exc:
                 status = getattr(exc, "status_code", None)
                 if status == 404 and sandbox.deleting:
-                    deleted = self.metadata.finish_operation(
-                        record.id,
-                        expected_revision=record.revision,
-                        resource_usage={},
-                        deleted=True,
-                    )
+                    try:
+                        deleted = self.metadata.finish_operation(
+                            record.id,
+                            expected_revision=record.revision,
+                            resource_usage={},
+                            deleted=True,
+                        )
+                    except (StorageError, OSError):
+                        logging.getLogger(__name__).warning(
+                            "integration_cleanup_pending provider=%s sandbox=%s",
+                            record.provider,
+                            record.name,
+                        )
+                        return replace(
+                            sandbox,
+                            state="Deleting",
+                            message="Sandbox cleanup is pending. Retry after any active or unconfirmed CAIPE process is reconciled.",
+                        )
                     from .telemetry import event
 
                     event(
@@ -201,6 +222,7 @@ class Store:
                         native_id=record.binding.key,
                         outcome="completed",
                     )
+
                     return self._observe(deleted)
                 sandbox = replace(
                     sandbox,
@@ -351,6 +373,16 @@ class Store:
             raise HTTPException(403, reason)
         return sandbox
 
+    def _require_acp_idle(self, sandbox):
+        snapshot = applied(sandbox)
+        if snapshot and snapshot["definition"].get("acp") and sandbox.uid:
+            binding = self.metadata.acp_binding(sandbox.uid)
+            if binding and binding["active_run_id"]:
+                raise HTTPException(
+                    409,
+                    "Stop the CAIPE run before changing this sandbox. An unconfirmed process requires operator reconciliation; deleting the sandbox ends its environment but does not retry the run.",
+                )
+
     def _native(self, sandbox):
         if sandbox.reference is None or sandbox.deleting:
             raise HTTPException(409, sandbox.message)
@@ -361,6 +393,15 @@ class Store:
 
     def sharing(self, name, owner, members, revision=None):
         sandbox = self.check_access(self.shared_get(name, owner, owner))
+        snapshot = applied(sandbox)
+        if (
+            snapshot
+            and snapshot["definition"].get("acp")
+            and "shell" in members.values()
+        ):
+            raise HTTPException(
+                409, "Private ACP sandboxes cannot grant shared shell access"
+            )
         if sandbox.record.scope_owner != owner:
             raise HTTPException(403, "Only the namespace owner can change sharing")
         if owner in members:
@@ -462,6 +503,12 @@ class Store:
                 else existing
             )
         profile = self.profiles.get(profile_id, profile_revision)
+        if profile.acp:
+            if namespace is not None or namespace_strategy not in {None, "perSandbox"}:
+                raise HTTPException(
+                    422, "ACP coding profiles require a new private namespace"
+                )
+            namespace_strategy = "perSandbox"
         size = self.profiles.size(profile, size)
         backend = self.integrations.for_profile(profile)
         scope_owner, namespace_uid = owner, None
@@ -767,6 +814,7 @@ class Store:
 
     def configure(self, name, owner, size):
         sandbox = self.check_access(self.get(name, owner))
+        self._require_acp_idle(sandbox)
         snapshot = applied(sandbox)
         profile = Profile.model_validate(snapshot["definition"]) if snapshot else None
         size = self.profiles.validate_size(profile, size)
@@ -819,6 +867,7 @@ class Store:
                 "Only the micro VM creator or platform admins can edit integrations",
             )
         self.check_access(sandbox)
+        self._require_acp_idle(sandbox)
         record = sandbox.record
         if sandbox.uid != update.uid:
             raise Conflict("Sandbox configuration changed; refresh before applying")
@@ -853,6 +902,7 @@ class Store:
 
     def mode(self, name, owner, mode):
         sandbox = self.check_access(self.get(name, owner))
+        self._require_acp_idle(sandbox)
         self._native(sandbox)
         record = sandbox.record
         if record.operation:

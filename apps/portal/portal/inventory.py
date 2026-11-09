@@ -71,6 +71,7 @@ class Sandbox:
             if snapshot
             else None,
             "namespace_strategy": snapshot["namespaceStrategy"] if snapshot else None,
+            "acp_available": bool(definition and definition.get("acp")),
             "helpers": [
                 {
                     "id": h["id"],

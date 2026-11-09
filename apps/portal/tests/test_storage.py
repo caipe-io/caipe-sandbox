@@ -1135,3 +1135,37 @@ def test_failed_creation_cancellation_requires_fence_and_confirmed_rejection(
             store.finish_operation(record.id, **arguments, **fence)
         assert store.get_sandbox(record.id).resource_usage == {"pods": "1"}
     store.release_lease(lease)
+
+
+@pytest.mark.parametrize(
+    "revision", ["0007_acp_bindings", "0007_namespace_network_policy"]
+)
+def test_merge_preserves_existing_metadata_histories(database, revision):
+    from alembic import command
+
+    from portal.storage.schema import acp_bindings
+
+    store = SQLMetadataStore(database)
+    try:
+        with store._transaction(write=True) as connection:
+            command.upgrade(store._migration_config(connection), revision)
+            if revision == "0007_acp_bindings":
+                connection.execute(
+                    acp_bindings.insert().values(
+                        sandbox_uid="existing",
+                        owner_subject="owner",
+                        conversation_id="conversation",
+                        binding_id="binding",
+                        policy_revision="revision",
+                        active_run_id="run",
+                        process_token="token",
+                    )
+                )
+        store.migrate()
+        store.check_schema()
+        if revision == "0007_acp_bindings":
+            assert store.acp_binding("existing")["active_run_id"] == "run"
+        else:
+            assert store.acp_binding("existing") is None
+    finally:
+        store.close()

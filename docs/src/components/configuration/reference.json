@@ -309,9 +309,38 @@
       "required": true,
       "minLength": 1,
       "maxLength": 64
+    },
+    {
+      "path": "acp.command",
+      "type": "array",
+      "required": true,
+      "minItems": 1,
+      "maxItems": 64
+    },
+    {
+      "path": "acp.workspace_root",
+      "type": "string",
+      "required": true,
+      "pattern": "^/[^\\x00\\r\\n]+$",
+      "maxLength": 1024
     }
   ],
   "deployment": [
+    {
+      "path": "acp.existingSecret",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "path": "acp.secretKey",
+      "type": "string",
+      "default": "token"
+    },
+    {
+      "path": "acp.connections",
+      "type": "object",
+      "default": {}
+    },
     {
       "path": "image.repository",
       "type": "str",
@@ -329,6 +358,21 @@
     },
     {
       "path": "extraObjects",
+      "type": "array",
+      "default": []
+    },
+    {
+      "path": "extraContainers",
+      "type": "array",
+      "default": []
+    },
+    {
+      "path": "extraVolumes",
+      "type": "array",
+      "default": []
+    },
+    {
+      "path": "extraServicePorts",
       "type": "array",
       "default": []
     },
@@ -1324,6 +1368,16 @@
       "path": "PORTAL_BASE_PATH",
       "type": "str",
       "default": "/agent-sandbox-portal"
+    },
+    {
+      "path": "PORTAL_ACP_CONNECTIONS",
+      "type": "str",
+      "default": "{}"
+    },
+    {
+      "path": "PORTAL_ACP_SERVICE_TOKEN",
+      "type": "str",
+      "default": ""
     },
     {
       "path": "OTEL_SERVICE_NAME",

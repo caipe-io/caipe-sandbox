@@ -145,7 +145,7 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
         run: |
-          for dockerfile in apps/portal/Dockerfile sandbox-images/default/Dockerfile; do
+          for dockerfile in apps/portal/Dockerfile sandbox-images/default/Dockerfile sandbox-images/claude-code/Dockerfile; do
             image=$(basename "$(dirname "$dockerfile")")
             bash build/build-docker.sh --image "sandbox-$image:test" \
               --path "$dockerfile" --args "--platform linux/$ARCH"
@@ -162,7 +162,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
           OWNER: ${{ github.repository_owner }}
         run: |
-          for image in portal default; do
+          for image in portal default claude-code; do
             ref="ghcr.io/${OWNER,,}/caipe-sandbox-$image:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$ARCH"
             docker tag "sandbox-$image:test" "$ref"
             docker push "$ref"
@@ -210,7 +210,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for image in portal default; do
+          for image in portal default claude-code; do
             ref="ghcr.io/${OWNER,,}/caipe-sandbox-$image"
             tags=(-t "$ref:sha-$GITHUB_SHA")
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then

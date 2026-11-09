@@ -16,6 +16,7 @@ from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
 from pydantic import ValidationError
 
+from ..integrations.caipe.storage import CAIPEStorage
 from . import (
     Conflict,
     Lease,
@@ -46,10 +47,17 @@ def grant_scope(columns):
     )
 
 
-class SQLMetadataStore:
+class SQLMetadataStore(CAIPEStorage):
     def __init__(self, settings: DatabaseSettings):
         self.engine = settings.engine()
         self.migration_lock_timeout_ms = settings.timeout_seconds * 1000
+        self.metadata_integrations = {}
+
+    def register_metadata_integration(self, integration_id, *, tables, cleanup_sandbox):
+        self.metadata_integrations[integration_id] = {
+            "tables": tuple(tables),
+            "cleanup_sandbox": cleanup_sandbox,
+        }
 
     def close(self):
         self.engine.dispose()
@@ -453,6 +461,37 @@ class SQLMetadataStore:
                     )
                 raise Conflict(f"Owner resource quota exceeded: {key}")
 
+    def _lock_scope(self, connection, provider, instance, scope):
+        if connection.dialect.name == "postgresql":
+            key = int.from_bytes(
+                hashlib.sha256(
+                    json.dumps([provider, instance, scope]).encode()
+                ).digest()[:8],
+                "big",
+                signed=True,
+            )
+            connection.execute(
+                sa.text("SELECT pg_advisory_xact_lock(:key)"), {"key": key}
+            )
+
+    def _scope_records(self, connection, provider, instance, scope):
+        return (
+            connection.execute(
+                sa.select(sandboxes.c.id, sandboxes.c.profile_snapshot).where(
+                    sandboxes.c.provider == provider,
+                    sandboxes.c.provider_instance == instance,
+                    sandboxes.c.scope == scope,
+                    sandboxes.c.deleted_at.is_(None),
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    @staticmethod
+    def _is_acp_snapshot(snapshot):
+        return bool((snapshot or {}).get("definition", {}).get("acp"))
+
     def reserve_create(
         self, intent: SandboxIntent, request_id, *, quota=None, retained_usage=None
     ):
@@ -469,6 +508,22 @@ class SQLMetadataStore:
         )
         try:
             with self._transaction(write=True) as connection:
+                self._lock_scope(
+                    connection, intent.provider, intent.provider_instance, intent.scope
+                )
+                siblings = self._scope_records(
+                    connection, intent.provider, intent.provider_instance, intent.scope
+                )
+                if siblings and (
+                    self._is_acp_snapshot(intent.profile_snapshot)
+                    or any(
+                        self._is_acp_snapshot(row["profile_snapshot"])
+                        for row in siblings
+                    )
+                ):
+                    raise Conflict(
+                        "ACP coding sandboxes require an exclusive namespace"
+                    )
                 self._check_quota(
                     connection,
                     intent.owner,
@@ -568,6 +623,28 @@ class SQLMetadataStore:
             )
             return self._record(connection, sandbox_id)
 
+    def _lock_acp_mutation(self, connection, sandbox_id):
+        from .schema import acp_bindings
+
+        row = connection.execute(
+            sa.select(sandboxes.c.native_key)
+            .where(sandboxes.c.id == str(sandbox_id))
+            .with_for_update()
+        ).first()
+        if (
+            row
+            and row.native_key
+            and connection.execute(
+                sa.select(acp_bindings.c.sandbox_uid).where(
+                    acp_bindings.c.sandbox_uid == row.native_key,
+                    acp_bindings.c.active_run_id.is_not(None),
+                )
+            ).first()
+        ):
+            raise Conflict(
+                "CAIPE process is active or unconfirmed; reconcile it before changing this sandbox"
+            )
+
     def set_scope_grants(self, sandbox_id, members, *, expected_revision):
         if any(
             not isinstance(p, str)
@@ -577,6 +654,21 @@ class SQLMetadataStore:
         ):
             raise ValueError("Sharing grants require principals and view/shell roles")
         with self._transaction(write=True) as connection:
+            current = self._record(connection, sandbox_id)
+            if current:
+                self._lock_scope(
+                    connection,
+                    current.provider,
+                    current.provider_instance,
+                    current.scope,
+                )
+                for sibling in self._scope_records(
+                    connection,
+                    current.provider,
+                    current.provider_instance,
+                    current.scope,
+                ):
+                    self._lock_acp_mutation(connection, sibling["id"])
             current = self._record(connection, sandbox_id)
             if current is None or current.deleted_at:
                 raise Conflict("Sandbox no longer exists")
@@ -656,6 +748,7 @@ class SQLMetadataStore:
     ):
         candidate = ManifestUpdate(manifest=manifest, requested_mode=requested_mode)
         with self._transaction(write=True) as connection:
+            self._lock_acp_mutation(connection, sandbox_id)
             current = self._record(connection, sandbox_id)
             if current is None or current.deleted_at:
                 raise Conflict(
@@ -703,6 +796,13 @@ class SQLMetadataStore:
                 expected_revision = self._operation_revision(
                     connection, sandbox_id, expected_revision, lease, operation_id
                 )
+                # The same row serializes deletion and CAIPE admission on PostgreSQL;
+                # SQLite write transactions are already serialized.
+                connection.execute(
+                    sa.select(sandboxes.c.id)
+                    .where(sandboxes.c.id == str(sandbox_id))
+                    .with_for_update()
+                )
                 current = self._record(connection, sandbox_id)
                 if current is None or current.deleted_at or current.operation is None:
                     raise Conflict("Sandbox operation changed; refresh and retry")
@@ -719,6 +819,9 @@ class SQLMetadataStore:
                     and not cancelled_creation
                 ):
                     raise Conflict("Deletion has not been requested")
+                if deleted:
+                    for integration in self.metadata_integrations.values():
+                        integration["cleanup_sandbox"](connection, current)
                 self._revise(
                     connection,
                     sandbox_id,

@@ -273,6 +273,8 @@ def write(namespaces, namespace, candidate, existing, *, dry_run=False):
 
 def update(backend, sandbox, request, actor):
     store, record = backend.store, sandbox.record
+    if (record.profile_snapshot or {}).get("definition", {}).get("acp"):
+        raise Conflict("Network policy changes are disabled for ACP coding sandboxes")
     with claim(
         store.metadata,
         f"namespace-network/{scope_key(record.provider, record.provider_instance, record.scope)}",

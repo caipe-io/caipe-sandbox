@@ -108,6 +108,15 @@ spec:
               name: http
           env:
             {{- include "agent-sandbox-portal.database.env" . | nindent 12 }}
+            - name: PORTAL_ACP_CONNECTIONS
+              value: {{ .Values.acp.connections | toJson | quote }}
+            {{- if .Values.acp.connections }}
+            - name: PORTAL_ACP_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "acp.existingSecret is required for admitted ACP connections" .Values.acp.existingSecret | quote }}
+                  key: {{ .Values.acp.secretKey | quote }}
+            {{- end }}
             - name: OTEL_SERVICE_NAME
               value: caipe-sandbox-portal
             - name: PORTAL_POD_UID
@@ -127,6 +136,7 @@ spec:
               value: parentbased_traceidratio
             - name: OTEL_TRACES_SAMPLER_ARG
               value: {{ .Values.observability.tracing.sampleRatio | quote }}
+
             {{- end }}
             - name: PORTAL_OPERATION_LEASE_SECONDS
               value: {{ .Values.settings.operationLeaseSeconds | quote }}
@@ -241,6 +251,9 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
         {{- include "agent-sandbox-portal.database.volumes" . | nindent 8 }}
         - name: runtime
@@ -251,6 +264,9 @@ spec:
           configMap:
             name: {{ .Release.Name }}-profiles
         {{- include "agent-sandbox-portal.integrations.volumes" . | nindent 8 }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -270,6 +286,9 @@ spec:
     - name: http
       port: 8000
       targetPort: http
+    {{- with .Values.extraServicePorts }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 {{- if .Values.ingress.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

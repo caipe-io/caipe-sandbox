@@ -11,11 +11,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from test_portal import BASE, HEADERS, OTHER, OWNER, SETTINGS, Omnigent, suspended
-from test_profiles import store_for
-
 from portal.app import create_app
 from portal.storage import Conflict, StorageError
+from test_portal import BASE, HEADERS, OTHER, OWNER, SETTINGS, Omnigent, suspended
+from test_profiles import store_for
 
 
 def test_restriction_saved_during_observation_blocks_resume_dispatch(monkeypatch):
@@ -412,3 +411,29 @@ def test_resized_allocation_is_read_from_saved_manifest_during_provider_outage(
     )
     row = store.status_view(store.get(sandbox.name, OWNER))
     assert row["state"] == "Unknown" and row["allocation"] == size.model_dump()
+
+
+def test_cleanup_pending_remains_visible_and_maintenance_retries():
+    from portal.integrations.caipe.storage import OWNED_TABLES, cleanup_sandbox
+
+    store, kube = store_for()
+    sandbox = store.create(OWNER)
+    identity = {
+        "sandbox_uid": sandbox.uid,
+        "owner_subject": "subject",
+        "conversation_id": "conversation",
+        "binding_id": "binding",
+        "policy_revision": "sha256:" + "a" * 64,
+    }
+    token = store.metadata.admit_acp(identity, "run")
+    store.metadata.register_metadata_integration(
+        "caipe", tables=OWNED_TABLES, cleanup_sandbox=cleanup_sandbox
+    )
+    with pytest.raises(Conflict, match="active or unconfirmed"):
+        store.delete(sandbox.name, OWNER)
+    assert store.metadata.acp_binding(sandbox.uid)["active_run_id"] == "run"
+    assert store.metadata.finish_acp(sandbox.uid, "run", token)
+    store.delete(sandbox.name, OWNER)
+    assert store.metadata.get_sandbox(sandbox.record.id).deleted_at is not None
+    assert store.metadata.acp_binding(sandbox.uid) is None
+    assert not kube.items

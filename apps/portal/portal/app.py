@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 from starlette.middleware.sessions import SessionMiddleware
 from websocket import WebSocketException
 
+from .acp import install as install_acp
 from .auth import COOKIE, Authentication
 from .config import Settings, header_links
 from .controls import (
@@ -253,7 +254,9 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
         title="CAIPE Sandbox", lifespan=lifespan, docs_url=None, redoc_url=None
     )
     prefix = settings.base_path
+    install_acp(app, settings, auth, drain)
     app.add_middleware(RequestTelemetry, telemetry=telemetry)
+
 
     app.state.auth = auth
     app.state.drain = drain

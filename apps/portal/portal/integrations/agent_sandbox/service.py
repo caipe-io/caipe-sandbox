@@ -1,7 +1,6 @@
 """Native lifecycle and resource accounting for Kubernetes Agent Sandbox."""
 
 import json
-import logging
 import time
 from copy import deepcopy
 
@@ -16,6 +15,7 @@ from .status import enrich, suspended
 
 GROUP, VERSION, PLURAL = "agents.x-k8s.io", "v1beta1", "sandboxes"
 PREFIX = "sandbox.caipe.io/"
+BOOTSTRAP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 
 
 class Integration:
@@ -89,26 +89,9 @@ class Integration:
         with self.store.scope_operation(self, body["metadata"]["namespace"]) as owner:
             owner.check()
             self.ensure(body)
-            # Newly created namespace RoleBindings can lag across API servers.
-            for attempt in range(6):
-                owner.check()
-                try:
-                    return self._create(body, request_id)
-                except ApiException as exc:
-                    if exc.status != 403:
-                        raise
-                    if attempt == 5:
-                        raise HTTPException(
-                            503,
-                            "Kubernetes did not permit micro VM creation after waiting for namespace permissions. Use Retry to check and continue safely. If this persists, ask a platform administrator to check namespace RBAC and admission policies.",
-                        ) from None
-                    logging.getLogger(__name__).info(
-                        "sandbox_rbac_pending namespace=%s request_id=%s attempt=%s",
-                        body["metadata"]["namespace"],
-                        request_id,
-                        attempt + 1,
-                    )
-                    time.sleep(min(2, 0.2 * 2**attempt))
+            owner.check()
+            return self._create(body, request_id, owner.check)
+
 
     @native_errors
     def verify_creation_absent(self, manifest, *, rejected):
@@ -124,18 +107,35 @@ class Integration:
         ]
         self.catalog.verify_creation_absent(meta["namespace"], meta["name"], claims)
 
-    def _create(self, body, request_id):
+    def _create(self, body, request_id, check):
         meta = body["metadata"]
-        # Native CRD/schema/admission validation remains authoritative.
-        self.catalog.custom.create_namespaced_custom_object(
-            GROUP,
-            VERSION,
-            meta["namespace"],
-            PLURAL,
-            body,
-            dry_run="All",
-            field_validation="Strict",
-        )
+        # A freshly created RoleBinding can take a short time to become visible
+        # to the API server's authorizer. Retry only its exact RBAC denial on
+        # the side-effect-free dry run; validation/admission errors stay final.
+        for attempt in range(len(BOOTSTRAP_RETRY_DELAYS) + 1):
+            check()
+            try:
+                self.catalog.custom.create_namespaced_custom_object(
+                    GROUP,
+                    VERSION,
+                    meta["namespace"],
+                    PLURAL,
+                    body,
+                    dry_run="All",
+                    field_validation="Strict",
+                )
+                break
+            except ApiException as exc:
+                if not self._bootstrap_authorization_denied(exc, meta["namespace"]):
+                    raise
+                if attempt == len(BOOTSTRAP_RETRY_DELAYS):
+                    raise HTTPException(
+                        503,
+                        "Sandbox service permission is unavailable. Retry or contact an administrator.",
+                    ) from None
+                time.sleep(BOOTSTRAP_RETRY_DELAYS[attempt])
+        # Recheck the scope lease immediately before the only mutating call.
+        check()
         try:
             return self.catalog.custom.create_namespaced_custom_object(
                 GROUP,
@@ -170,6 +170,25 @@ class Integration:
                     "Creation request was already used for different sandbox settings",
                 ) from None
             return existing
+
+    def _bootstrap_authorization_denied(self, exc, namespace):
+        if exc.status != 403:
+            return False
+        try:
+            body = json.loads(exc.body or "")
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(body, dict) or body.get("reason") != "Forbidden":
+            return False
+        settings = self.store.settings
+        expected = (
+            f'{PLURAL}.{GROUP} is forbidden: User "system:serviceaccount:'
+            f'{settings.portal_namespace}:{settings.portal_service_account}" '
+            f'cannot create resource "{PLURAL}" in API group "{GROUP}" '
+            f'in the namespace "{namespace}"'
+        )
+        message = body.get("message")
+        return isinstance(message, str) and message.startswith(expected)
 
     def plan_configure(self, cr, size, *, manifest=None):
         from ...resources import allocation
