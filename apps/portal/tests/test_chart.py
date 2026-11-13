@@ -97,6 +97,8 @@ def test_mcp_discovery_and_replica_identity_reach_deployment(tmp_path):
         ingress["spec"]["rules"][0]["http"]["paths"][0]["path"]
         == "/.well-known/oauth-protected-resource/apps/sandbox/api/mcp"
     )
+    assert ingress["spec"]["rules"][0]["http"]["paths"][0]["pathType"] == "ImplementationSpecific"
+    assert ingress["spec"]["rules"][0]["http"]["paths"][1]["pathType"] == "Prefix"
     for change in (
         {"jwks_url": ""},
         {"resource_url": "https://sandbox.example.com/incorrect"},
