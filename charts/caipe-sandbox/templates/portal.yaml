@@ -309,7 +309,8 @@ spec:
         paths:
           {{- if .Values.mcp.enabled }}
           - path: /.well-known/oauth-protected-resource{{ .Values.settings.basePath }}/api/mcp
-            pathType: Exact
+            # Strict NGINX validation reserves dotted paths for ImplementationSpecific.
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: {{ .Release.Name }}
