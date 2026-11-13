@@ -1,6 +1,7 @@
 import { brandIcons } from "./brand-icons.js";
 
 const paths = {
+  "external-link": '<path d="M15 3h6v6m0-6L10 14M10 3H3v18h18v-7"/>',
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
   code: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/>',
   git: '<circle cx="6" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 8v8m12-7c0 6-12 0-12 7"/>',

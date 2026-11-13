@@ -22,6 +22,8 @@ import { copyJson } from "./json-view.js";
 import { sandboxMetadata } from "./timestamps.js";
 import { createInventoryQueryNavigation } from "./query-navigation.js";
 import { renderGlobalPolicySummary, sandboxPolicyBadges } from "./admin-policy-view.js";
+import {mcpAction, openMCP} from "./mcp-view.js";
+let mcpConfiguration = {enabled:false};
 
 for (const element of document.querySelectorAll("[data-icon]")) element.innerHTML = icon(element.dataset.icon);
 
@@ -444,7 +446,7 @@ function sandboxCard(s) {
   const powerText = cancel ? "Cancel creation" : retry ? (s.operation.kind === "create" ? "Retry creation" : "Retry action") : s.state === "Suspended" ? "Resume" : "Suspend";
   const powerContent = `<span class="power-label"><strong>${esc(retry && !running ? "Needs attention" : s.state)}</strong><small>${s.disabled ? "Access locked" : !s.can_manage ? "Owner only" : retry || ["Running","Suspended","Error"].includes(s.state) ? powerText : "Please wait"}</small></span>`;
   const stateButton = button(powerAction,`${s.state} — ${powerText}`,cancel ? "trash" : retry ? "refresh" : "power",!retry && (!!s.operation || !["Running","Suspended","Error"].includes(s.state) || (s.state !== "Suspended" && s.capabilities?.suspend === false)),"power-button " + stateClass,powerContent);
-  const overflow = `<details class="card-menu"><summary aria-label="Sandbox actions" title="Sandbox actions">Actions${icon("chevron")}</summary><div class="overflow-actions">${s.operation && s.can_manage && !cancel ? button("retry","Retry operation","refresh") : ""}${button("configuration","View/Sync Configuration","file")}${integrationActions(s,`data-id="${esc(s.id)}"`)}${s.can_shell ? button("workspace","Startup & services","code",s.state!=="Running") : ""}${s.can_share ? button("sharing","Share sandbox","share") : ""}${s.can_manage ? `${button("resources","Edit CPU / memory","settings",!a || s.state!=="Suspended" || !!s.operation || s.capabilities?.resize === false)}${button("delete",failedCreation(s) ? "Cancel creation" : "Delete sandbox","trash",s.state==="Deleting","secondary danger")}<small>${s.capabilities?.resize === false ? "Resources are set at creation" : "Suspend to edit resources"}</small>` : ""}</div></details>`;
+  const overflow = `<details class="card-menu"><summary aria-label="Sandbox actions" title="Sandbox actions">Actions${icon("chevron")}</summary><div class="overflow-actions">${s.operation && s.can_manage && !cancel ? button("retry","Retry operation","refresh") : ""}${button("configuration","View/Sync Configuration","file")}${mcpAction(s,mcpConfiguration,currentRole === "admin" || (s.owner === currentUser && currentRole === "user"))}${integrationActions(s,`data-id="${esc(s.id)}"`)}${s.can_shell ? button("workspace","Startup & services","code",s.state!=="Running") : ""}${s.can_share ? button("sharing","Share sandbox","share") : ""}${s.can_manage ? `${button("resources","Edit CPU / memory","settings",!a || s.state!=="Suspended" || !!s.operation || s.capabilities?.resize === false)}${button("delete",failedCreation(s) ? "Cancel creation" : "Delete sandbox","trash",s.state==="Deleting","secondary danger")}<small>${s.capabilities?.resize === false ? "Resources are set at creation" : "Suspend to edit resources"}</small>` : ""}</div></details>`;
 
   const note = s.admin_control?.notice;
   const helpers = cardHelpers(s);
@@ -611,6 +613,7 @@ async function refresh() {
     for (const row of data.sandboxes) { row.native_id = row.id; row.id = row.portal_id || row.id; }
     currentUser = data.user_id;
     currentRole = data.role;
+    mcpConfiguration = data.mcp || {enabled:false};
     byId("admin-nav").hidden = data.role !== "admin";
     byId("admin-controls").hidden = !adminView;
     profiles = data.profiles || [];
@@ -960,7 +963,7 @@ async function handleAction(event) {
     const namespace = button.dataset.namespace;
     const row = sandboxRows.get(`${namespace}/${id}`);
     const pending = row?.operation;
-    menu.innerHTML = `${pending ? `<button class="secondary" type="button" data-action="admin-retry" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("refresh")}Retry operation</button>` : ""}<button class="secondary" type="button" data-action="admin-configuration" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("file")}View/Sync Configuration</button>${integrationActions(row,`data-id="${esc(id)}" data-namespace="${esc(namespace)}"`)}<button class="secondary" type="button" data-action="admin-control" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("settings")}Controls & message</button><button class="secondary" type="button" data-action="admin-namespace-lock" data-id="${esc(id)}" data-namespace="${esc(namespace)}" title="${row?.namespace_locked ? "Allow namespace reuse" : "Prevent anyone creating new sandboxes here; existing micro VMs keep running"}">${icon(row?.namespace_locked ? "unlock" : "lock")}${row?.namespace_locked ? "Unlock namespace" : "Lock namespace"}</button>`;
+    menu.innerHTML = `${pending ? `<button class="secondary" type="button" data-action="admin-retry" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("refresh")}Retry operation</button>` : ""}<button class="secondary" type="button" data-action="admin-configuration" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("file")}View/Sync Configuration</button>${mcpAction(row,mcpConfiguration,true,`data-namespace="${esc(namespace)}"`)}${integrationActions(row,`data-id="${esc(id)}" data-namespace="${esc(namespace)}"`)}<button class="secondary" type="button" data-action="admin-control" data-id="${esc(id)}" data-namespace="${esc(namespace)}">${icon("settings")}Controls & message</button><button class="secondary" type="button" data-action="admin-namespace-lock" data-id="${esc(id)}" data-namespace="${esc(namespace)}" title="${row?.namespace_locked ? "Allow namespace reuse" : "Prevent anyone creating new sandboxes here; existing micro VMs keep running"}">${icon(row?.namespace_locked ? "unlock" : "lock")}${row?.namespace_locked ? "Unlock namespace" : "Lock namespace"}</button>`;
     menu.showPopover();
     const rect = button.getBoundingClientRect();
     menu.style.left = Math.max(8, Math.min(rect.right - menu.offsetWidth, innerWidth - menu.offsetWidth - 8)) + "px";
@@ -989,6 +992,12 @@ async function handleAction(event) {
       if(action === "network-security") await openSecurityPanel(byId("integration-dialog"),requestFor,row);
       else await openIntegrationPanel(button.dataset.panel,byId("integration-dialog"),requestFor(button.dataset.panel),row);
     } catch (err) { error(err); }
+    return;
+  }
+  if (action === "mcp") {
+    const row = sandboxRows.get(button.dataset.namespace ? `${button.dataset.namespace}/${id}` : id);
+    if (row) openMCP(byId("mcp-dialog"), row, mcpConfiguration,
+      body => api(`/sandboxes/${encodeURIComponent(row.portal_id)}/mcp`, "PUT", body), refresh);
     return;
   }
   if (action === "configuration" || action === "admin-configuration") {

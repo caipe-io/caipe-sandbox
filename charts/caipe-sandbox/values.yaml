@@ -131,6 +131,26 @@ profiles:
           memory: 4Gi
         storage: 50Gi
 defaultProfile: engineering
+# Independent OAuth resource server. Existing and new VMs remain opted out until their owner enables MCP.
+mcp:
+  enabled: false
+  resource_url: ""  # Canonical HTTPS URL ending in settings.basePath + /api/mcp.
+  issuer: ""
+  jwks_url: ""
+  algorithms: [RS256]
+  read_scope: sandbox:read
+  execute_scope: sandbox:exec
+  identity:
+    default_role: user
+    require_verified_email: true
+    allowed_email_domains: []
+    allowed_groups: []
+  max_sessions: 8  # Active live sessions per portal process.
+  max_timeout_seconds: 3600
+  foreground_wait_seconds: 25
+  output_bytes: 1048576
+  retention_seconds: 300
+  docs_url: https://caipe-io.github.io/caipe-sandbox/guide/mcp
 settings:
   # Up to three links in the top-right bar. Use [] to hide all links.
   headerLinks:

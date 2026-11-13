@@ -45,6 +45,8 @@ class Sandbox:
         return {
             "id": self.name,
             "portal_id": str(self.record.id) if self.record else None,
+            "mcp": self.record.mcp.model_dump() if self.record else {"enabled": False},
+            "revision": self.record.revision if self.record else None,
             "uid": self.uid,
             "namespace": self.scope,
             "resource_version": self.resource_version,

@@ -47,6 +47,12 @@ class ManifestUpdate(BaseModel):
     requested_mode: Literal["running", "suspended"] = "running"
 
 
+class MCPConfiguration(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = Field(default=False, strict=True)
+
+
 class SandboxIntent(ManifestUpdate):
     id: UUID
     name: str = Field(pattern=r"^[a-z][a-z0-9-]{0,15}$")
@@ -90,6 +96,7 @@ class NativeBinding(BaseModel):
 
 
 class SandboxRecord(SandboxIntent):
+    mcp: MCPConfiguration = Field(default_factory=MCPConfiguration)
     binding: NativeBinding | None = None
     revision: int
     created_at: datetime
@@ -122,6 +129,14 @@ class MetadataStore(Protocol):
         ...
 
     def get_sandbox(self, sandbox_id: UUID) -> SandboxRecord | None: ...
+
+    def save_mcp(
+        self,
+        sandbox_id: UUID,
+        configuration: MCPConfiguration,
+        *,
+        expected_revision: int,
+    ) -> SandboxRecord: ...
 
     def find_creation(self, owner: str, request_id: UUID) -> SandboxRecord | None: ...
 

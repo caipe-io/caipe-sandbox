@@ -242,7 +242,7 @@ def test_admin_seed_revocation_and_untrusted_role():
 
 
 def test_oidc_seeded_login_and_removal_reject_admin_api():
-    import httpx
+    import httpx2 as httpx
     from test_oidc import ORIGIN, Provider, login
 
     settings = replace(OIDC, admin_emails=json.dumps([OWNER]))

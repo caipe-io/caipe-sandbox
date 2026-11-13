@@ -327,6 +327,7 @@ class Store:
             "profile_spec": None,
             "uid": sandbox.uid,
             "revision": record.revision,
+            "mcp": record.mcp.model_dump(),
             "can_sync": (
                 callable(
                     getattr(
@@ -1207,6 +1208,32 @@ class Store:
                 409, "Resolve the pending sandbox operation before opening a shell"
             )
         return self.integrations.execution(sandbox)
+
+    def mcp_sandbox(self, sandbox_id, actor, *, shell=False):
+        record = self._record(str(uuid.UUID(str(sandbox_id))))
+        sandbox = self.shared_get(str(record.id), actor, record.owner, shell=shell)
+        self.check_access(sandbox)
+        if not sandbox.record.mcp.enabled:
+            raise HTTPException(
+                404,
+                "Sandbox is unavailable through MCP; check list_sandboxes and portal access",
+            )
+        return sandbox
+
+    def configure_mcp(self, sandbox_id, actor, configuration, revision, *, admin=False):
+        record = self._record(str(uuid.UUID(str(sandbox_id))))
+        if not admin and record.owner != actor:
+            raise HTTPException(404, "Sandbox not found")
+        if configuration.enabled:
+            self.check_access(self._observe(record))
+        saved = self.metadata.save_mcp(
+            record.id, configuration, expected_revision=revision
+        )
+        return {
+            "sandbox_id": str(saved.id),
+            "mcp": saved.mcp.model_dump(),
+            "revision": saved.revision,
+        }
 
     def admin_execution(self, name, namespace):
         sandbox = self.admin_get(name, namespace)

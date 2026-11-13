@@ -66,6 +66,44 @@ def test_header_links_reach_portal_environment(tmp_path, links):
     )
 
 
+def test_mcp_discovery_and_replica_identity_reach_deployment(tmp_path):
+    settings = {"basePath": "/apps/sandbox"}
+    policy = {
+        "enabled": True,
+        "resource_url": "https://sandbox.example.com/apps/sandbox/api/mcp",
+        "issuer": "https://idp.example.com",
+        "jwks_url": "https://idp.example.com/jwks",
+    }
+    result = render(
+        tmp_path,
+        settings,
+        mcp=policy,
+        ingress={"enabled": True, "host": "sandbox.example.com"},
+    )
+    assert result.returncode == 0, result.stderr
+    resources = [o for o in yaml.safe_load_all(result.stdout) if o]
+    deployment = next(o for o in resources if o["kind"] == "Deployment")
+    env = {
+        e["name"]: e
+        for e in deployment["spec"]["template"]["spec"]["containers"][0]["env"]
+    }
+    assert (
+        json.loads(env["PORTAL_MCP_POLICY"]["value"])["resource_url"]
+        == policy["resource_url"]
+    )
+    assert env["PORTAL_POD_IP"]["valueFrom"]["fieldRef"]["fieldPath"] == "status.podIP"
+    ingress = next(o for o in resources if o["kind"] == "Ingress")
+    assert (
+        ingress["spec"]["rules"][0]["http"]["paths"][0]["path"]
+        == "/.well-known/oauth-protected-resource/apps/sandbox/api/mcp"
+    )
+    for change in (
+        {"jwks_url": ""},
+        {"resource_url": "https://sandbox.example.com/incorrect"},
+    ):
+        assert render(tmp_path, settings, mcp={**policy, **change}).returncode != 0
+
+
 def test_caipe_auth_uses_secret_references_and_preserves_subpaths(tmp_path):
     result = render(
         tmp_path,

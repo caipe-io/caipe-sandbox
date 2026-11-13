@@ -29,7 +29,7 @@ module.exports = {
     {
       type: "category",
       label: "Operate",
-      items: ["deployment", "packaging", "scaling", "contributing"],
+      items: ["deployment", "packaging", "scaling", "mcp", "contributing"],
     },
   ],
 };

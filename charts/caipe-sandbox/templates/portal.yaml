@@ -20,6 +20,16 @@
 {{- if le (int .Values.terminationGracePeriodSeconds) (int (add .Values.shutdown.propagationSeconds .Values.shutdown.drainSeconds .Values.shutdown.serverGraceSeconds)) }}
 {{- fail "terminationGracePeriodSeconds must exceed propagationSeconds + drainSeconds + serverGraceSeconds" }}
 {{- end }}
+{{- if .Values.mcp.enabled }}
+{{- range $key := list "resource_url" "issuer" "jwks_url" }}
+{{- if not (index $.Values.mcp $key) }}
+{{- fail (printf "mcp.%s is required when mcp.enabled is true" $key) }}
+{{- end }}
+{{- end }}
+{{- if ne (urlParse .Values.mcp.resource_url).path (printf "%s/api/mcp" .Values.settings.basePath) }}
+{{- fail "mcp.resource_url path must equal settings.basePath + /api/mcp" }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -114,6 +124,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.uid
+            - name: PORTAL_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PORTAL_MCP_POLICY
+              value: {{ .Values.mcp | toJson | quote }}
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: {{ printf "helm.chart.version=%s,container.image.id=%s@%s,k8s.namespace.name=%s,k8s.pod.uid=$(PORTAL_POD_UID),service.instance.id=$(PORTAL_POD_UID)" .Chart.Version .Values.image.repository .Values.image.digest .Release.Namespace | quote }}
             {{- if .Values.observability.tracing.endpoint }}
@@ -291,6 +307,15 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
+          {{- if .Values.mcp.enabled }}
+          - path: /.well-known/oauth-protected-resource{{ .Values.settings.basePath }}/api/mcp
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Release.Name }}
+                port:
+                  number: 8000
+          {{- end }}
           - path: {{ .Values.settings.basePath }}/
             pathType: Prefix
             backend:

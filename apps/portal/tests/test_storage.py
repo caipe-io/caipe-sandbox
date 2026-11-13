@@ -14,6 +14,7 @@ from alembic.migration import MigrationContext
 
 from portal.storage import (
     Conflict,
+    MCPConfiguration,
     NativeBinding,
     PendingOperation,
     SandboxIntent,
@@ -618,6 +619,39 @@ def test_controls_migration_preserves_existing_sandbox_records(database):
         store.check_schema()
         assert store.get_sandbox(record.id) == record
         assert store.get_controls().revision == 1
+    finally:
+        store.close()
+
+
+def test_mcp_migration_defaults_off_and_persists_revision_checked_opt_in(database):
+    from alembic import command
+
+    store = SQLMetadataStore(database)
+    try:
+        with store.engine.begin() as connection:
+            command.upgrade(
+                store._migration_config(connection), "0007_namespace_network_policy"
+            )
+        record = previous_schema_record(store)
+        store.migrate()
+        assert store.get_sandbox(record.id).mcp == MCPConfiguration(enabled=False)
+        saved = store.save_mcp(
+            record.id, MCPConfiguration(enabled=True), expected_revision=record.revision
+        )
+        assert (
+            saved.manifest == record.manifest and saved.revision == record.revision + 1
+        )
+        with pytest.raises(Conflict):
+            store.save_mcp(
+                record.id,
+                MCPConfiguration(enabled=False),
+                expected_revision=record.revision,
+            )
+        restarted = SQLMetadataStore(database)
+        try:
+            assert restarted.get_sandbox(record.id).mcp.enabled
+        finally:
+            restarted.close()
     finally:
         store.close()
 

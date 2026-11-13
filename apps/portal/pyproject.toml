@@ -7,16 +7,28 @@ name = "agent-sandbox-portal"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.141.1,<1", "starlette>=1.3.1,<2", "uvicorn[standard]>=0.34,<1",
-  "httpx>=0.28.1,<1", "kubernetes>=32.0.1,<33",
-  "Authlib>=1.9.1,<2", "itsdangerous>=2.2,<3",
-  "pydantic>=2.9,<3", "joserfc>=1.7.7,<2", "websocket-client>=1.9,<2",
+  "fastapi>=0.141.1,<1",
+  "starlette>=1.3.1,<2",
+  "uvicorn[standard]>=0.34,<1",
+  "httpx>=0.28.1,<1",
+  "kubernetes>=32.0.1,<33",
+  "Authlib>=1.9.1,<2",
+  "itsdangerous>=2.2,<3",
+  "pydantic>=2.9,<3",
+  "joserfc>=1.7.7,<2",
+  "websocket-client>=1.9,<2",
   "certifi>=2026.10.19",
   "oauthlib>=4.0.1,<5",
   "openshell>=0.1.6,<0.1.7",
   "msgpack>=1.2.3,<2",
-  "opentelemetry-sdk>=1.45.1,<2", "opentelemetry-exporter-otlp-proto-http>=1.45.1,<2",
-  "SQLAlchemy>=2.0.43,<3", "alembic>=1.16.5,<2", "psycopg[binary]>=3.2.10,<4",
+  "opentelemetry-sdk>=1.45.1,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.45.1,<2",
+  "SQLAlchemy>=2.0.43,<3",
+  "alembic>=1.16.5,<2",
+  "psycopg[binary]>=3.2.10,<4",
+  "mcp>=2.3.0,<3",
+  "pyjwt[crypto]>=2.15.1,<3",
+  "httpx2>=2.0.2,<3",
 ]
 
 [project.optional-dependencies]
