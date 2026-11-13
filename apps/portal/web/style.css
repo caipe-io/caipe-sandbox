@@ -138,15 +138,15 @@ h2 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: -.2px; }
 .sandbox-status summary > .icon:last-child { margin-left: 0; }
 .status-details-label { margin-left: auto; font-size: 9px; }
 .capacity-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); background: var(--inset); border-block: 1px solid var(--line); }
-.capacity { padding: 5px 9px; border-right: 1px solid var(--line); }
+.capacity { padding: 3px 9px; border-right: 1px solid var(--line); }
 .capacity:last-child { border-right: none; }
 .capacity > span { display: flex; align-items: center; gap: 4px; font: 8px var(--mono); color: var(--muted); }
 .capacity .icon { width: 11px; height: 11px; }
-.capacity strong { display: flex; gap: 4px; align-items: baseline; font: 15px/1.5 var(--mono); }
+.capacity strong { display: flex; gap: 4px; align-items: baseline; font: 13px/1.25 var(--mono); }
 .capacity small { font: 9px var(--mono); color: var(--muted); }
 .helper-section { padding: 8px 10px 6px; }
-.machine-feature-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--inset); }
-.mcp-enabled-badge { display:inline-flex; align-items:center; min-height:25px; padding:3px 7px; border:1px solid #9bc9ac; border-radius:5px; color:#176f40; background:#e7f4ec; font-size:10px; font-weight:550; }
+.machine-feature-row { display:flex; align-items:center; flex-wrap:wrap; gap:5px; padding:4px 10px; border-bottom:1px solid var(--line); background:var(--inset); }
+.mcp-enabled-badge { display:inline-flex; align-items:center; min-height:20px; padding:1px 6px; border:1px solid #9bc9ac; border-radius:4px; color:#176f40; background:#e7f4ec; font-size:9px; line-height:1.4; font-weight:550; }
 .mcp-enabled-badge:hover { border-color:#7dba8e; background:#dceddf; }
 @media(prefers-color-scheme:dark) { .mcp-enabled-badge { background:#234331; border-color:#467e59; color:#9bdfb2; } .mcp-enabled-badge:hover { background:#2c503b; border-color:#619571; } }
 .integration-heading { display: flex; align-items: center; gap: 6px; font-size: 10px; }
