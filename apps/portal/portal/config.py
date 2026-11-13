@@ -73,6 +73,9 @@ class Settings:
     caipe_policy: str = "{}"
     caipe_verification_key: str = field(default="", repr=False)
     terminal_url: str = ""
+    mcp_policy: str = '{"enabled":false}'
+    pod_uid: str = ""
+    pod_ip: str = ""
     base_path: str = "/agent-sandbox-portal"
 
     @classmethod
@@ -175,6 +178,9 @@ class Settings:
         from .auth import Authentication
 
         Authentication(settings)
+        from .mcp.auth import MCPPolicy
+
+        MCPPolicy.model_validate_json(settings.mcp_policy).validate_settings(settings)
         return settings
 
 

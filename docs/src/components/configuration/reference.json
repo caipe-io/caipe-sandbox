@@ -654,6 +654,137 @@
       "pattern": "^[a-z][a-z0-9-]{0,39}$"
     },
     {
+      "path": "mcp.enabled",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "path": "mcp.resource_url",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "path": "mcp.issuer",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "path": "mcp.jwks_url",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "path": "mcp.algorithms",
+      "type": "array",
+      "default": [
+        "RS256"
+      ]
+    },
+    {
+      "path": "mcp.read_scope",
+      "type": "string",
+      "default": "sandbox:read"
+    },
+    {
+      "path": "mcp.execute_scope",
+      "type": "string",
+      "default": "sandbox:exec"
+    },
+    {
+      "path": "mcp.identity.default_role",
+      "type": "string",
+      "default": "user"
+    },
+    {
+      "path": "mcp.identity.require_verified_email",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "path": "mcp.identity.allowed_email_domains",
+      "type": "array",
+      "default": []
+    },
+    {
+      "path": "mcp.identity.allowed_groups",
+      "type": "array",
+      "default": []
+    },
+    {
+      "path": "mcp.identity.issuer",
+      "type": "string"
+    },
+    {
+      "path": "mcp.identity.client_id",
+      "type": "string"
+    },
+    {
+      "path": "mcp.identity.scopes",
+      "type": "string"
+    },
+    {
+      "path": "mcp.identity.email_claim",
+      "type": "string"
+    },
+    {
+      "path": "mcp.identity.groups_claim",
+      "type": "string"
+    },
+    {
+      "path": "mcp.identity.use_userinfo",
+      "type": "boolean"
+    },
+    {
+      "path": "mcp.identity.role_groups",
+      "type": "object"
+    },
+    {
+      "path": "mcp.identity.session_seconds",
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400
+    },
+    {
+      "path": "mcp.max_sessions",
+      "type": "integer",
+      "default": 8,
+      "minimum": 1,
+      "maximum": 128
+    },
+    {
+      "path": "mcp.max_timeout_seconds",
+      "type": "integer",
+      "default": 3600,
+      "minimum": 1,
+      "maximum": 86400
+    },
+    {
+      "path": "mcp.foreground_wait_seconds",
+      "type": "integer",
+      "default": 25,
+      "minimum": 1,
+      "maximum": 60
+    },
+    {
+      "path": "mcp.output_bytes",
+      "type": "integer",
+      "default": 1048576,
+      "minimum": 4096,
+      "maximum": 16777216
+    },
+    {
+      "path": "mcp.retention_seconds",
+      "type": "integer",
+      "default": 300,
+      "minimum": 30,
+      "maximum": 3600
+    },
+    {
+      "path": "mcp.docs_url",
+      "type": "string",
+      "default": "https://caipe-io.github.io/caipe-sandbox/guide/mcp"
+    },
+    {
       "path": "settings.headerLinks",
       "type": "array",
       "default": [
@@ -1321,6 +1452,21 @@
       "default": ""
     },
     {
+      "path": "PORTAL_MCP_POLICY",
+      "type": "str",
+      "default": "{\"enabled\":false}"
+    },
+    {
+      "path": "PORTAL_POD_UID",
+      "type": "str",
+      "default": ""
+    },
+    {
+      "path": "PORTAL_POD_IP",
+      "type": "str",
+      "default": ""
+    },
+    {
       "path": "PORTAL_BASE_PATH",
       "type": "str",
       "default": "/agent-sandbox-portal"
@@ -1342,10 +1488,6 @@
       "path": "OTEL_SDK_DISABLED",
       "type": "process environment",
       "default": ""
-    },
-    {
-      "path": "PORTAL_POD_UID",
-      "type": "chart wiring"
     },
     {
       "path": "OTEL_RESOURCE_ATTRIBUTES",
@@ -1459,6 +1601,12 @@
       "path": "record.resource_usage",
       "type": "object",
       "required": false
+    },
+    {
+      "path": "record.mcp.enabled",
+      "type": "boolean",
+      "required": false,
+      "default": false
     },
     {
       "path": "record.binding.key",

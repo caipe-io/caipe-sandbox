@@ -7,7 +7,7 @@ import time
 from dataclasses import replace
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
+import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner

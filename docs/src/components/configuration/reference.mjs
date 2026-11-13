@@ -74,6 +74,17 @@ export const groups = [
     "Disk is creation-time for direct Agent Sandbox; OpenShell disk is fixed by gateway configuration.",
   ),
   group(
+    "platform-mcp",
+    "deployment",
+    "External agents (MCP)",
+    /^mcp\./,
+    "Platform operator",
+    ["helm", "portal", "database", "guest"],
+    "OAuth resource-specific tokens and existing sandbox shell permissions protect tool calls. Runtime policies continue to enforce commands inside the sandbox.",
+    "Operators enable the server and configure issuer, scopes and limits. Owners/admins separately opt individual sandboxes in through Actions.",
+    "Server settings apply after rollout. Opt-in is durable metadata; execution sessions and output are bounded in memory and do not survive loss of their owning portal process.",
+  ),
+  group(
     "platform-catalog",
     "deployment",
     "Profile catalog",
@@ -296,6 +307,20 @@ export const groups = [
 ];
 
 const notes = {
+  "record.mcp.enabled": "Owner/admin opt-in for MCP access, disabled initially. Existing sharing, role and shell permissions still apply; this is not a native Pod field.",
+  "mcp.enabled": "Enable the authenticated Streamable HTTP MCP server. Each sandbox still requires separate owner/admin opt-in.",
+  "mcp.resource_url": "Public canonical MCP URL and exact OAuth token audience. Its path must equal settings.basePath plus /api/mcp.",
+  "mcp.issuer": "Trusted OAuth authorization-server issuer. Tokens must match this issuer exactly.",
+  "mcp.jwks_url": "Operator-configured HTTPS endpoint supplying public JWT verification keys. Loopback HTTP is allowed for development.",
+  "mcp.algorithms": "Allowed asymmetric JWT signature algorithms; shared-secret JWTs are not accepted by MCP.",
+  "mcp.read_scope": "OAuth scope required with the execution scope for this command-oriented MCP server.",
+  "mcp.execute_scope": "OAuth execution scope required in addition to existing sandbox shell authorization.",
+  "mcp.max_sessions": "Maximum active MCP command sessions per portal replica; excess launches fail before starting.",
+  "mcp.max_timeout_seconds": "Largest accepted remote command deadline, in seconds.",
+  "mcp.foreground_wait_seconds": "Maximum foreground response wait before returning a live session handle. This does not end the remote command.",
+  "mcp.output_bytes": "Bounded retained stdout/stderr bytes per live session. Reads report truncation explicitly.",
+  "mcp.retention_seconds": "Completed output retention in seconds, subject to the replica's bounded session count.",
+  "mcp.docs_url": "Optional HTTPS onboarding link shown in the MCP confirmation dialog.",
   id: "Stable catalog identifier, distinct from a sandbox ID or Kubernetes UID. IDs must be unique in the catalog.",
   title: "Friendly profile title shown in the selection dropdown.",
   description: "Optional explanatory text shown with the profile definition.",
@@ -605,9 +630,12 @@ const envValues = {
   BASE_PATH: "settings.basePath",
   POD_UID:
     "Kubernetes downward API injects this Pod's UID for log/trace resource identity. It is not a sandbox or Linux UID.",
+  POD_IP: "Kubernetes downward API injects the portal Pod IP for authenticated MCP session forwarding between replicas.",
+  MCP_POLICY: "mcp: authenticated MCP resource, trusted issuer, identity mapping and bounded live-session limits.",
 };
 
 const stateNotes = {
+  "record.mcp.enabled": "Owner/admin opt-in for MCP access. Disabled initially; existing sharing, role and shell permissions still apply.",
   "record.id":
     "Portal UUID for a logical sandbox. Distinct from its friendly name, Kubernetes UID and in-guest Linux UID.",
   "record.name":
@@ -733,6 +761,8 @@ export function describe(entry, scope) {
     return undefined;
   }
   if (notes[path]) return notes[path];
+  if (path.startsWith("mcp.identity."))
+    return "Verified JWT email/group mapping and admission policy, using the same identity rules as browser OIDC. Match browser ownership identities; this does not grant access to another user's sandbox.";
   if (scope === "profile" && path.startsWith("ui.resources.")) {
     const [, , bound, kind, field] = path.split(".");
     return `${bound === "default" ? "Starting" : bound === "minimum" ? "Smallest permitted" : "Largest permitted"} ${kind === "storage" ? "persistent disk size" : `${kind === "requests" ? "reserved" : "limit for"} ${field}`} in Kubernetes quantities. ${kind === "storage" ? "OpenShell allows disk choices with persistentVolumeClaim storage mode; gateway mode requires the fixed storageGiB." : "Requests must not exceed limits; all sizes must fit the platform envelope."}`;

@@ -5,13 +5,14 @@ import json
 import logging
 import threading
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote, urlsplit
 from uuid import UUID, uuid4
 
 import httpx
+import httpx2
 from authlib.integrations.base_client.errors import OAuthError
 from fastapi import (
     FastAPI,
@@ -47,6 +48,7 @@ from .profiles import helper as applied_helper
 from .resources import Allocation, policy
 from .sandboxes import Store, shares, view
 from .storage import Conflict, StorageError
+from .storage import MCPConfiguration
 from .storage.database import DatabaseSettings
 from .telemetry import RequestTelemetry, Tracing, bind, event, span
 from .terminal import TerminalDrain, TerminalIO, attach_exec, warn_restart
@@ -113,6 +115,20 @@ class IntegrationUpdate(SyncConfiguration):
     configuration: dict[str, JsonValue]
 
 
+class MCPUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1)
+    mcp: MCPConfiguration
+
+
+class MCPPeerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sandbox_id: UUID
+    session_id: str = Field(min_length=1, max_length=4096)
+    cursor: int = Field(default=0, ge=0)
+    wait_ms: int = Field(default=1000, ge=0, le=20000)
+
+
 def create_app(settings=None, store=None, upstream=None, workspace=None):
     settings = settings or Settings.from_env()
     DatabaseSettings(
@@ -124,6 +140,18 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
     placement = namespace_config(settings)
     drain = Drain(settings.drain_file)
     telemetry = Tracing()
+    from .mcp.auth import MCPPolicy
+
+    mcp_policy = MCPPolicy.model_validate_json(settings.mcp_policy)
+    mcp_policy.validate_settings(settings)
+    mcp_service = None
+
+    def public_mcp():
+        return {
+            "enabled": mcp_policy.enabled,
+            "resource_url": mcp_policy.resource_url,
+            "docs_url": mcp_policy.docs_url,
+        }
 
     def public_profile(profile):
         return {
@@ -239,8 +267,18 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
 
                 tasks.append(asyncio.create_task(reconcile()))
             try:
-                yield
+                async with AsyncExitStack() as services:
+                    if mcp_service:
+                        mcp_service.start()
+                        await services.enter_async_context(
+                            mcp_service.http_app.router.lifespan_context(
+                                mcp_service.http_app
+                            )
+                        )
+                    yield
             finally:
+                if mcp_service:
+                    await mcp_service.close()
                 reconciliation_stop.set()
                 for task in tasks:
                     task.cancel()
@@ -257,6 +295,11 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
 
     app.state.auth = auth
     app.state.drain = drain
+    if mcp_policy.enabled:
+        from .mcp.server import MCPService
+
+        mcp_service = MCPService(settings, app, drain)
+    app.state.mcp = mcp_service
     if auth.oidc:
         app.add_middleware(
             SessionMiddleware,
@@ -308,6 +351,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
         return JSONResponse({"detail": message}, status_code=code)
 
     @app.exception_handler(httpx.HTTPError)
+    @app.exception_handler(httpx2.HTTPError)
     async def upstream_error(request, exc):
         return JSONResponse(
             {"detail": "Omnigent is unavailable; try again"}, status_code=503
@@ -384,7 +428,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
             return await auth.client.authorize_redirect(
                 request, settings.origin.rstrip("/") + prefix + "/auth/callback"
             )
-        except (httpx.HTTPError, OAuthError, ValueError):
+        except (httpx.HTTPError, httpx2.HTTPError, OAuthError, ValueError):
             raise HTTPException(503, "OIDC login is unavailable") from None
 
     @app.get(prefix + "/auth/callback")
@@ -421,6 +465,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
             raise
         except (
             httpx.HTTPError,
+            httpx2.HTTPError,
             OAuthError,
             JoseError,
             ValueError,
@@ -478,7 +523,9 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
             (STATIC / "index.html")
             .read_text(encoding="utf-8")
             .replace("__PORTAL_BASE_PATH__", quote(prefix, safe="/"))
-            .replace("__PORTAL_BODY_CLASS__", "embedded" if auth.terminal_credentials else ""),
+            .replace(
+                "__PORTAL_BODY_CLASS__", "embedded" if auth.terminal_credentials else ""
+            ),
             headers={
                 "Content-Security-Policy": f"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'{connect_source}; frame-ancestors 'self'; object-src 'none'; base-uri 'none'",
                 "X-Content-Type-Options": "nosniff",
@@ -570,6 +617,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
                 "default_profile": settings.default_profile,
                 "resource_policy": policy(settings).model_dump(),
                 "sandboxes": rows,
+                "mcp": public_mcp(),
             },
             headers={"Cache-Control": "no-store"},
         )
@@ -598,6 +646,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
                     **control_policy.model_dump(),
                     "resource_version": version,
                 },
+                "mcp": public_mcp(),
                 "announcement": control_policy.announcement.model_dump()
                 if control_policy.announcement
                 else None,
@@ -1366,5 +1415,121 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
                 WebSocketDisconnect,
             ):
                 pass
+
+    @app.put(prefix + "/api/sandboxes/{sandbox_id}/mcp")
+    async def configure_mcp(sandbox_id: UUID, body: MCPUpdate, request: Request):
+        origin(request)
+        drain.require_accepting()
+        principal = await current_principal(request)
+        principal.require_user()
+        if body.mcp.enabled and not mcp_policy.enabled:
+            raise HTTPException(409, "MCP is disabled by the platform operator")
+        saved = await asyncio.to_thread(
+            app.state.store.configure_mcp,
+            str(sandbox_id),
+            principal.owner,
+            body.mcp,
+            body.revision,
+            admin=principal.role == "admin",
+        )
+        event(
+            "sandbox_mcp_updated",
+            category="audit",
+            actor=principal.owner,
+            sandbox_id=str(sandbox_id),
+            enabled=body.mcp.enabled,
+        )
+        return JSONResponse(
+            {**saved, "connection": public_mcp()}, headers={"Cache-Control": "no-store"}
+        )
+
+    if mcp_service:
+        resource = urlsplit(mcp_policy.resource_url)
+
+        @app.api_route(
+            "/.well-known/oauth-protected-resource" + resource.path,
+            methods=["GET", "HEAD"],
+        )
+        async def mcp_metadata():
+            return JSONResponse(
+                {
+                    "resource": mcp_policy.resource_url,
+                    "authorization_servers": [mcp_policy.issuer],
+                    "bearer_methods_supported": ["header"],
+                    "scopes_supported": [
+                        mcp_policy.read_scope,
+                        mcp_policy.execute_scope,
+                    ],
+                },
+                headers={"Cache-Control": "public, max-age=300"},
+            )
+
+        @app.post(prefix + "/api/mcp-session/{action}")
+        async def mcp_peer(
+            action: Literal["read", "cancel"], body: MCPPeerRequest, request: Request
+        ):
+            from .mcp.auth import principal
+            from .mcp.sessions import ToolFailure
+
+            identity = {
+                "sandbox_id": str(body.sandbox_id),
+                "session_id": body.session_id,
+            }
+            header = request.headers.get("authorization", "").split()
+            token = (
+                await mcp_service.verifier.verify_token(header[1])
+                if len(header) == 2 and header[0].lower() == "bearer"
+                else None
+            )
+            resource = urlsplit(mcp_policy.resource_url)
+            challenge = f'Bearer resource_metadata="{resource.scheme}://{resource.netloc}/.well-known/oauth-protected-resource{resource.path}"'
+            if token is None:
+                return JSONResponse(
+                    {**identity, "code": "AUTH_REQUIRED"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": challenge},
+                )
+            if not {mcp_policy.read_scope, mcp_policy.execute_scope}.issubset(
+                token.scopes
+            ):
+                return JSONResponse(
+                    {**identity, "code": "INSUFFICIENT_SCOPE"},
+                    status_code=403,
+                    headers={
+                        "WWW-Authenticate": challenge
+                        + f', scope="{mcp_policy.read_scope} {mcp_policy.execute_scope}"'
+                    },
+                )
+            actor = principal(token)
+            try:
+                actor.require_user()
+                await asyncio.to_thread(
+                    app.state.store.mcp_sandbox,
+                    str(body.sandbox_id),
+                    actor.owner,
+                    shell=True,
+                )
+                data = await mcp_service.follow(
+                    actor,
+                    token,
+                    str(body.sandbox_id),
+                    body.session_id,
+                    action,
+                    {"cursor": body.cursor, "wait_ms": body.wait_ms},
+                    local_only=True,
+                )
+            except ToolFailure as exc:
+                data = {**exc.result, **identity, "is_error": True}
+            except HTTPException:
+                data = {
+                    **identity,
+                    "code": "SANDBOX_UNAVAILABLE",
+                    "message": "This sandbox/session is unavailable through MCP.",
+                    "next_action": "Check your access and MCP enablement for this same sandbox.",
+                    "is_error": True,
+                }
+            return JSONResponse(data, headers={"Cache-Control": "no-store"})
+
+        app.mount("/", mcp_service.http_app)
 
     return app

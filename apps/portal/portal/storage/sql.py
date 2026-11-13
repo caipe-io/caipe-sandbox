@@ -20,6 +20,7 @@ from . import (
     Conflict,
     Lease,
     ManifestUpdate,
+    MCPConfiguration,
     NativeBinding,
     PendingOperation,
     PortalControls,
@@ -639,6 +640,14 @@ class SQLMetadataStore:
     def save_sandbox_control(self, sandbox_id, control, *, expected_revision):
         with self._transaction(write=True) as connection:
             self._revise(connection, sandbox_id, expected_revision, control=control)
+            return self._record(connection, sandbox_id)
+
+    def save_mcp(self, sandbox_id, configuration, *, expected_revision):
+        value = MCPConfiguration.model_validate(configuration)
+        with self._transaction(write=True) as connection:
+            self._revise(
+                connection, sandbox_id, expected_revision, mcp=value.model_dump()
+            )
             return self._record(connection, sandbox_id)
 
     def begin_operation(

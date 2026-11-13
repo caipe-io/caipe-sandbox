@@ -29,6 +29,7 @@ sandboxes = sa.Table(
     sa.Column("provider", sa.String(40), nullable=False),
     sa.Column("provider_instance", sa.String(254), nullable=False),
     sa.Column("manifest", sa.JSON, nullable=False),
+    sa.Column("mcp", sa.JSON, nullable=False, server_default='{"enabled":false}'),
     sa.Column("profile_snapshot", sa.JSON(none_as_null=True)),
     sa.Column("scope", sa.String(512), nullable=False, server_default=""),
     sa.Column("scope_owner", sa.String(254), nullable=False, server_default=""),

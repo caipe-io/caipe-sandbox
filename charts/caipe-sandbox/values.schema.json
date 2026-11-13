@@ -4,30 +4,58 @@
   "properties": {
     "extraObjects": {
       "type": "array",
-      "items": {"type": "object"}
+      "items": {
+        "type": "object"
+      }
     },
     "agentSandbox": {
       "type": "object",
-      "properties": {"enabled": {"type": "boolean"}}
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     },
     "omnigent": {
       "type": "object",
-      "properties": {"enabled": {"type": "boolean"}}
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     },
     "kata": {
       "type": "object",
-      "properties": {"enabled": {"type": "boolean"}}
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
     },
     "observability": {
-      "type": "object", "additionalProperties": false,
-      "required": ["tracing"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tracing"
+      ],
       "properties": {
         "tracing": {
-          "type": "object", "additionalProperties": false,
-          "required": ["endpoint", "sampleRatio"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "endpoint",
+            "sampleRatio"
+          ],
           "properties": {
-            "endpoint": {"type": "string", "pattern": "^$|^https?://[^@?# ]+$"},
-            "sampleRatio": {"type": "number", "minimum": 0, "maximum": 1}
+            "endpoint": {
+              "type": "string",
+              "pattern": "^$|^https?://[^@?# ]+$"
+            },
+            "sampleRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
           }
         }
       }
@@ -47,28 +75,87 @@
       "minimum": 1
     },
     "podDisruptionBudget": {
-      "type": "object", "additionalProperties": false,
-      "required": ["enabled"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": {"type": "boolean"},
-        "minAvailable": {"anyOf": [{"$ref": "#/definitions/IntOrPercent"}, {"type": "null"}]},
-        "maxUnavailable": {"anyOf": [{"$ref": "#/definitions/IntOrPercent"}, {"type": "null"}]}
+        "enabled": {
+          "type": "boolean"
+        },
+        "minAvailable": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/IntOrPercent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxUnavailable": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/IntOrPercent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       }
     },
     "topologySpreadConstraints": {
-      "type": "array", "items": {"type": "object"}
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     },
-    "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
-    "affinity": {"type": "object"},
-    "tolerations": {"type": "array", "items": {"type": "object"}},
-    "terminationGracePeriodSeconds": {"type": "integer", "minimum": 6, "maximum": 900},
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 6,
+      "maximum": 900
+    },
     "shutdown": {
-      "type": "object", "additionalProperties": false,
-      "required": ["propagationSeconds", "drainSeconds", "serverGraceSeconds"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "propagationSeconds",
+        "drainSeconds",
+        "serverGraceSeconds"
+      ],
       "properties": {
-        "propagationSeconds": {"type": "integer", "minimum": 0, "maximum": 60},
-        "drainSeconds": {"type": "integer", "minimum": 0, "maximum": 600},
-        "serverGraceSeconds": {"type": "integer", "minimum": 5, "maximum": 120}
+        "propagationSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "drainSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600
+        },
+        "serverGraceSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 120
+        }
       }
     },
     "namespace": {
@@ -79,11 +166,20 @@
       ],
       "properties": {
         "allowedStrategies": {
-          "type": ["array", "null"],
+          "type": [
+            "array",
+            "null"
+          ],
           "minItems": 1,
           "maxItems": 2,
           "uniqueItems": true,
-          "items": {"type": "string", "enum": ["perUser", "perSandbox"]}
+          "items": {
+            "type": "string",
+            "enum": [
+              "perUser",
+              "perSandbox"
+            ]
+          }
         },
         "strategy": {
           "type": "string",
@@ -437,7 +533,10 @@
             },
             "storageMode": {
               "type": "string",
-              "enum": ["gateway", "persistentVolumeClaim"]
+              "enum": [
+                "gateway",
+                "persistentVolumeClaim"
+              ]
             },
             "namespaceLabel": {
               "type": "string"
@@ -556,7 +655,9 @@
     "namespacePolicy": {
       "type": "object",
       "properties": {
-        "baselineNetworkPolicy": {"type": "boolean"}
+        "baselineNetworkPolicy": {
+          "type": "boolean"
+        }
       }
     },
     "resourcePolicy": {
@@ -565,17 +666,43 @@
     "auth": {
       "type": "object",
       "properties": {
-        "mode": {"enum": ["oidc", "omnigent", "caipe"]},
+        "mode": {
+          "enum": [
+            "oidc",
+            "omnigent",
+            "caipe"
+          ]
+        },
         "caipe": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "issuer": {"type": "string", "minLength": 1},
-            "app_id": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"},
-            "default_role": {"enum": ["user", "viewer"]},
-            "session_seconds": {"type": "integer", "minimum": 60, "maximum": 86400},
-            "existingSecret": {"type": "string"},
-            "verificationKeyKey": {"type": "string", "minLength": 1}
+            "issuer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "app_id": {
+              "type": "string",
+              "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+            },
+            "default_role": {
+              "enum": [
+                "user",
+                "viewer"
+              ]
+            },
+            "session_seconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 86400
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "verificationKeyKey": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
@@ -641,23 +768,126 @@
           ]
         },
         "rollingUpdate": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
-          "required": ["maxUnavailable", "maxSurge"],
+          "required": [
+            "maxUnavailable",
+            "maxSurge"
+          ],
           "properties": {
-            "maxUnavailable": {"$ref": "#/definitions/IntOrPercent"},
-            "maxSurge": {"$ref": "#/definitions/IntOrPercent"}
+            "maxUnavailable": {
+              "$ref": "#/definitions/IntOrPercent"
+            },
+            "maxSurge": {
+              "$ref": "#/definitions/IntOrPercent"
+            }
           }
         }
       }
+    },
+    "mcp": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "resource_url": {
+          "default": "",
+          "title": "Resource Url",
+          "type": "string"
+        },
+        "issuer": {
+          "default": "",
+          "title": "Issuer",
+          "type": "string"
+        },
+        "jwks_url": {
+          "default": "",
+          "title": "Jwks Url",
+          "type": "string"
+        },
+        "algorithms": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Algorithms",
+          "type": "array"
+        },
+        "read_scope": {
+          "default": "sandbox:read",
+          "title": "Read Scope",
+          "type": "string"
+        },
+        "execute_scope": {
+          "default": "sandbox:exec",
+          "title": "Execute Scope",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/definitions/OIDCPolicy"
+        },
+        "max_sessions": {
+          "default": 8,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Sessions",
+          "type": "integer"
+        },
+        "max_timeout_seconds": {
+          "default": 3600,
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Max Timeout Seconds",
+          "type": "integer"
+        },
+        "foreground_wait_seconds": {
+          "default": 25,
+          "maximum": 60,
+          "minimum": 1,
+          "title": "Foreground Wait Seconds",
+          "type": "integer"
+        },
+        "output_bytes": {
+          "default": 1048576,
+          "maximum": 16777216,
+          "minimum": 4096,
+          "title": "Output Bytes",
+          "type": "integer"
+        },
+        "retention_seconds": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 30,
+          "title": "Retention Seconds",
+          "type": "integer"
+        },
+        "docs_url": {
+          "default": "",
+          "title": "Docs Url",
+          "type": "string"
+        }
+      },
+      "title": "MCPPolicy",
+      "type": "object"
     }
   },
   "additionalProperties": false,
   "definitions": {
     "IntOrPercent": {
       "anyOf": [
-        {"type": "integer", "minimum": 0},
-        {"type": "string", "pattern": "^(100|[0-9]{1,2})%$"}
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^(100|[0-9]{1,2})%$"
+        }
       ]
     },
     "ComputeResources": {
@@ -750,6 +980,84 @@
         "limits",
         "storage"
       ],
+      "type": "object"
+    },
+    "OIDCPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "issuer": {
+          "default": "",
+          "title": "Issuer",
+          "type": "string"
+        },
+        "client_id": {
+          "default": "",
+          "title": "Client Id",
+          "type": "string"
+        },
+        "scopes": {
+          "default": "openid email profile groups",
+          "title": "Scopes",
+          "type": "string"
+        },
+        "email_claim": {
+          "default": "email",
+          "title": "Email Claim",
+          "type": "string"
+        },
+        "groups_claim": {
+          "default": "groups",
+          "title": "Groups Claim",
+          "type": "string"
+        },
+        "require_verified_email": {
+          "default": true,
+          "title": "Require Verified Email",
+          "type": "boolean"
+        },
+        "use_userinfo": {
+          "default": false,
+          "title": "Use Userinfo",
+          "type": "boolean"
+        },
+        "allowed_email_domains": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Email Domains",
+          "type": "array"
+        },
+        "allowed_groups": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Groups",
+          "type": "array"
+        },
+        "role_groups": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Role Groups",
+          "type": "object"
+        },
+        "default_role": {
+          "default": "",
+          "title": "Default Role",
+          "type": "string"
+        },
+        "session_seconds": {
+          "default": 3600,
+          "maximum": 86400,
+          "minimum": 60,
+          "title": "Session Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "OIDCPolicy",
       "type": "object"
     }
   }
