@@ -245,6 +245,7 @@ def test_standard_client_foreground_background_output_and_cancel(caplog):
                     )
                     if end.structured_content["state"] == "completed":
                         break
+                    read = end
                 assert end.structured_content["state"] == "completed"
                 assert end.structured_content["exit_code"] != 0
                 assert len(created) == 2

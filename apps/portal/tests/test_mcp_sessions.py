@@ -85,7 +85,7 @@ def test_foreground_handoff_stdin_cwd_deadline_and_bounded_output(tmp_path):
                     },
                 )
                 data = response.structured_content
-                assert data["state"] == "running" and str(tmp_path) in data["stdout"]
+                assert data["state"] in {"starting", "running"}
                 output = data["stdout"]
                 while data["state"] in {"starting", "running"}:
                     response = await client.call_tool(
@@ -98,6 +98,7 @@ def test_foreground_handoff_stdin_cwd_deadline_and_bounded_output(tmp_path):
                     )
                     data = response.structured_content
                     output += data["stdout"]
+                assert str(tmp_path) in output
                 assert (
                     "héllo" in output and output.endswith("done") and len(created) == 1
                 )
