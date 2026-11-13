@@ -13,11 +13,14 @@ tokens for this resource. Browser sign-in alone does not enable external agent a
 1. Open the sandbox's **Actions → Enable MCP**.
 2. Review and confirm access. This enables shell commands, including file changes, for authenticated
    users who already have shell permission.
-3. Copy the **MCP server URL** and **Sandbox ID** into your agent's setup. Use its standard remote
+3. Select **MCP Enabled** below the resource stats, then copy the **MCP server URL** and **Sandbox ID**
+   into your agent's setup. Use its standard remote
    Streamable HTTP/OAuth connection flow. Registration requirements depend on your identity provider/client.
 
 Ask the agent to retain the immutable Sandbox ID and use it in every call. Display names are not IDs.
 Enabling MCP does not grant access to other users or grant administrators implicit execution access.
+The confirmation closes automatically after saving. Changing access remains limited to the owner
+or an administrator; shared users can view connection details.
 
 ## Tools
 

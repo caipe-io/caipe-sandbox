@@ -22,7 +22,7 @@ import { copyJson } from "./json-view.js";
 import { sandboxMetadata } from "./timestamps.js";
 import { createInventoryQueryNavigation } from "./query-navigation.js";
 import { renderGlobalPolicySummary, sandboxPolicyBadges } from "./admin-policy-view.js";
-import {mcpAction, openMCP} from "./mcp-view.js";
+import {mcpAction, mcpEnabledRow, openMCP} from "./mcp-view.js";
 let mcpConfiguration = {enabled:false};
 
 for (const element of document.querySelectorAll("[data-icon]")) element.innerHTML = icon(element.dataset.icon);
@@ -460,6 +460,7 @@ function sandboxCard(s) {
       <div class="capacity" title="${esc(a.memory_request_mib/1024)} GiB reserved; ${esc(a.memory_limit_mib/1024)} GiB limit"><span>${icon("memory")}Memory</span><strong>${esc(a.memory_limit_mib/1024)}<small>GiB</small></strong></div>
       <div class="capacity" title="Persistent disk"><span>${icon("disk")}Disk</span><strong>${esc(a.workspace_gib)}<small>GiB</small></strong></div>
     </div>` : ""}
+    ${mcpEnabledRow(s,mcpConfiguration)}
     <section class="helper-section" aria-label="Profile helpers" ${helpers ? "" : "hidden"}>${helpers}</section>
     <div class="machine-actions">${button("terminal","Open terminal","terminal",!running,"terminal-button")}</div>
     <footer class="machine-footer">${sandboxMetadata(s)}</footer>
@@ -997,7 +998,8 @@ async function handleAction(event) {
   if (action === "mcp") {
     const row = sandboxRows.get(button.dataset.namespace ? `${button.dataset.namespace}/${id}` : id);
     if (row) openMCP(byId("mcp-dialog"), row, mcpConfiguration,
-      body => api(`/sandboxes/${encodeURIComponent(row.portal_id)}/mcp`, "PUT", body), refresh);
+      body => api(`/sandboxes/${encodeURIComponent(row.portal_id)}/mcp`, "PUT", body), refresh,
+      {canManage:currentRole === "admin" || (row.owner === currentUser && currentRole === "user")});
     return;
   }
   if (action === "configuration" || action === "admin-configuration") {
