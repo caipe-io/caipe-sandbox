@@ -98,7 +98,11 @@ existing compatible issuer/broker rather than treating this direct connection as
 Custom claims are described in [Okta's token customization guide](https://developer.okta.com/docs/guides/customize-tokens-returned-from-okta/main/).
 Group-based MCP restrictions additionally need the configured groups claim as an array of strings.
 
-## 4. Register each approved agent client
+## 4. Choose the agent's client registration method
+
+MCP does not require DCR. The following uses a pre-registered client; CIMD is another option only
+when your actual authorization server and agent support it. See the
+[registration-method comparison](mcp-authentication.md#choose-a-client-registration-method).
 
 For a CLI/native agent, create a **Native OIDC Application** using authorization code + S256 and
 client authentication **None**. Enable refresh tokens when needed. Use the agent's actual callback
@@ -109,8 +113,9 @@ See [PKCE client setup](https://developer.okta.com/docs/guides/implement-grant-t
 
 Okta's DCR endpoint requires authorized registration (`okta.clients.register`); it is not anonymous
 registration merely because discovery lists an endpoint. Never give an agent an Okta administration
-token to get past registration. A client that only supports anonymous connection-by-URL needs an
-operator-provided compatible registration/broker arrangement; this guide does not install one.
+token to get past registration. A client requiring anonymous DCR cannot use that protected API
+directly. Use a compatible pre-registered/CIMD client flow or an operator-provided registration
+broker if necessary; this guide does not install one.
 See the [registration API](https://developer.okta.com/docs/api/openapi/okta-oauth/oauth/client/createclient).
 
 ## 5. Configure and verify Sandbox MCP

@@ -15,7 +15,9 @@ tokens for this resource. Browser sign-in alone does not enable external agent a
    users who already have shell permission.
 3. Select **MCP Enabled** below the resource stats, then copy the **MCP server URL** and **Sandbox ID**
    into your agent's setup. Use its standard remote
-   Streamable HTTP/OAuth connection flow. Registration requirements depend on your identity provider/client.
+   Streamable HTTP/OAuth connection flow. DCR is optional: use
+   [pre-registration, CIMD or DCR](mcp-authentication.md#choose-a-client-registration-method)
+   according to the client and issuer's support.
 
 Ask the agent to retain the immutable Sandbox ID and use it in every call. Display names are not IDs.
 Enabling MCP does not grant access to other users or grant administrators implicit execution access.
