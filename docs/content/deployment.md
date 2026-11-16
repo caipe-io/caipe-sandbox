@@ -7,6 +7,9 @@ Use the [operator quickstart](getting-started.md) for a first installation and
 [Install and upgrade](packaging.md) for packaging and release changes. This page
 covers the decisions and checks needed before engineers use the service.
 
+Configure identity using [Authentication & SSO](authentication.md); its provider guides cover
+Keycloak and Okta, with separate setup for external MCP agents.
+
 ## Platform prerequisites
 
 Both current backends need an Agent Sandbox controller and CRDs. OpenShell

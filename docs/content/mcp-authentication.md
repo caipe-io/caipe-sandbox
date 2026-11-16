@@ -6,6 +6,10 @@ description: Configure an OAuth issuer for standalone or embedded Sandbox MCP ac
 Sandbox validates OAuth access tokens directly. Its MCP endpoint does not require CAIPE,
 Keycloak specifically, or a per-micro-VM authentication server.
 
+For browser sign-in, start with [Authentication & SSO](authentication.md). Provider-specific
+instructions cover [Keycloak](authentication-keycloak.md) and [Okta](authentication-okta.md),
+including their different agent-registration requirements.
+
 ```text
 Agent ── sign in and consent ──→ OAuth identity provider
 Agent ── access token ─────────→ Sandbox MCP ── permissions ──→ selected micro VM

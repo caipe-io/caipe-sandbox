@@ -31,10 +31,19 @@ module.exports = {
       label: "Operate",
       items: [
         "deployment",
+        {
+          type: "category",
+          label: "Authentication & SSO",
+          link: { type: "doc", id: "authentication" },
+          items: [
+            "authentication-keycloak",
+            "authentication-okta",
+            "mcp-authentication",
+          ],
+        },
         "packaging",
         "scaling",
         "mcp",
-        "mcp-authentication",
         "contributing",
       ],
     },
