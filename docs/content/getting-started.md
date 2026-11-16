@@ -61,6 +61,9 @@ the operator still provides the controllers those resources require. See
 
 ## 1. Prepare sign-in and HTTPS
 
+Use [Authentication & SSO](authentication.md) for provider setup, including
+[Keycloak](authentication-keycloak.md) and [Okta](authentication-okta.md).
+
 This example uses `https://sandbox.example.com`. Register this exact redirect URI
 with your OIDC provider:
 

@@ -683,12 +683,12 @@
     {
       "path": "mcp.read_scope",
       "type": "string",
-      "default": "sandbox:read"
+      "default": "sandbox:mcp"
     },
     {
       "path": "mcp.execute_scope",
       "type": "string",
-      "default": "sandbox:exec"
+      "default": "sandbox:mcp"
     },
     {
       "path": "mcp.identity.default_role",

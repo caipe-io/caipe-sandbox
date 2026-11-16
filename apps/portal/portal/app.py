@@ -1456,10 +1456,7 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
                     "resource": mcp_policy.resource_url,
                     "authorization_servers": [mcp_policy.issuer],
                     "bearer_methods_supported": ["header"],
-                    "scopes_supported": [
-                        mcp_policy.read_scope,
-                        mcp_policy.execute_scope,
-                    ],
+                    "scopes_supported": mcp_policy.required_scopes,
                 },
                 headers={"Cache-Control": "public, max-age=300"},
             )
@@ -1489,15 +1486,13 @@ def create_app(settings=None, store=None, upstream=None, workspace=None):
                     status_code=401,
                     headers={"WWW-Authenticate": challenge},
                 )
-            if not {mcp_policy.read_scope, mcp_policy.execute_scope}.issubset(
-                token.scopes
-            ):
+            if not set(mcp_policy.required_scopes).issubset(token.scopes):
                 return JSONResponse(
                     {**identity, "code": "INSUFFICIENT_SCOPE"},
                     status_code=403,
                     headers={
                         "WWW-Authenticate": challenge
-                        + f', scope="{mcp_policy.read_scope} {mcp_policy.execute_scope}"'
+                        + f', scope="{" ".join(mcp_policy.required_scopes)}"'
                     },
                 )
             actor = principal(token)

@@ -138,8 +138,8 @@ mcp:
   issuer: ""
   jwks_url: ""
   algorithms: [RS256]
-  read_scope: sandbox:read
-  execute_scope: sandbox:exec
+  read_scope: sandbox:mcp
+  execute_scope: sandbox:mcp
   identity:
     default_role: user
     require_verified_email: true

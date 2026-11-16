@@ -24,13 +24,13 @@ or an administrator; shared users can view connection details.
 
 ## Tools
 
-| Tool | Use |
-| --- | --- |
-| `list_sandboxes` | Discover enabled sandboxes you may access. Follow pagination even if a filtered page is empty. |
-| `get_sandbox` | Confirm the ID, state, runtime requirements and effective limits. |
-| `run_command` | Run a command with optional `cwd`, finite `stdin`, timeout and `run_in_background`. |
-| `read_execution` | Read a session's stdout/stderr, status and exit code using its output cursor. |
-| `cancel_execution` | Request cancellation, then read the same session to confirm its exit. |
+| Tool               | Use                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `list_sandboxes`   | Discover enabled sandboxes you may access. Follow pagination even if a filtered page is empty. |
+| `get_sandbox`      | Confirm the ID, state, runtime requirements and effective limits.                              |
+| `run_command`      | Run a command with optional `cwd`, finite `stdin`, timeout and `run_in_background`.            |
+| `read_execution`   | Read a session's stdout/stderr, status and exit code using its output cursor.                  |
+| `cancel_execution` | Request cancellation, then read the same session to confirm its exit.                          |
 
 Use ordinary commands such as `pwd`, `ls`, `find`, `git` and available patch tools for file work.
 Each call has its own working directory and environment. A previous `cd` does not affect later calls.
@@ -47,27 +47,35 @@ also returns that handle. Keep the returned `sandbox_id`, `session_id` and `next
 
 MCP is disabled by default. Enable it independently of browser authentication:
 
+First complete the one-time [OAuth provider setup](mcp-authentication.md).
+This supports standalone deployments and CAIPE embedding with the same MCP endpoint.
+
 ```yaml
+settings:
+  basePath: /apps/sandbox
 mcp:
   enabled: true
   resource_url: https://sandbox.example.com/apps/sandbox/api/mcp
   issuer: https://idp.example.com/realms/engineering
   jwks_url: https://idp.example.com/realms/engineering/protocol/openid-connect/certs
+  read_scope: sandbox:mcp
+  execute_scope: sandbox:mcp
   identity:
     default_role: user
     require_verified_email: true
-    allowed_groups: [engineering]
+    allowed_email_domains: [example.com]
 ```
 
 The resource URL path must equal `settings.basePath` plus `/api/mcp`. Register that exact resource
-audience with your OAuth provider and grant `sandbox:read` plus `sandbox:exec` for execution. Clients
+audience with your OAuth provider and request `sandbox:mcp`. Both scope settings use that single
+permission by default. Explicit custom values remain supported; when they differ, both are required. Clients
 must obtain signed access tokens with `sub`, the configured email claim, expiry and required scopes.
 Map the verified email/groups consistently with browser ownership; hosted-app JWTs and browser
 cookies are not MCP bearer credentials. Never put an admin's identity in a client-supplied argument.
 
 Discovery is available at `/.well-known/oauth-protected-resource` followed by the resource path.
-Expose that path through ingress too. When using CAIPE's external-app MCP routing, configure the
-same public resource and discovery paths end to end; direct Sandbox ingress is also supported.
+Expose that path through ingress too. Agents connect to Sandbox's public MCP URL directly,
+independently of whether the portal is standalone or embedded in CAIPE.
 The bundled ingress exposes the discovery path automatically when MCP is enabled.
 
 Use the shared `auth.existingSecret` session secret across replicas. Helm supplies each portal's Pod
