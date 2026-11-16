@@ -138,7 +138,7 @@ def mapper_matches(current, desired):
     ) and all(current.get("config", {}).get(k) == v for k, v in desired["config"].items())
 
 
-def configure(api, resource, scope=SCOPE, *, apply=False):
+def configure(api, resource, scope=SCOPE, *, apply=False, configure_dcr=False):
     resource = https_url(resource)
     if not urlsplit(resource).path.endswith("/api/mcp"):
         raise ValueError("Resource URL must end in the Sandbox base path plus /api/mcp")
@@ -149,25 +149,29 @@ def configure(api, resource, scope=SCOPE, *, apply=False):
         raise ValueError(
             f"Scope {scope} is not owned by this Sandbox resource; choose a different scope or review it manually"
         )
-    components = api("components?type=" + POLICIES)
-    providers = {c["providerId"] for c in components if c.get("subType") == "anonymous"}
-    if {"consent-required", "scope"} - providers:
-        raise ValueError(
-            "Configure Keycloak's anonymous Consent Required and Full Scope Disabled registration policies first; this helper does not enable DCR"
-        )
-    allowed = [
-        c
-        for c in components
-        if c.get("providerId") == "allowed-client-templates" and c.get("subType") == "anonymous"
-    ]
-    if len(allowed) > 1:
-        raise ValueError(
-            "Multiple anonymous Allowed Client Scopes policies exist; review them before configuration"
-        )
-    if allowed and "openid" not in (allowed[0].get("config") or {}).get("allowed-client-scopes", []):
-        raise ValueError(
-            "The existing anonymous scope allow-list does not permit openid. Configure the realm's OIDC/DCR prerequisites first; no Sandbox entries changed"
-        )
+    allowed = []
+    if configure_dcr:
+        components = api("components?type=" + POLICIES)
+        providers = {c["providerId"] for c in components if c.get("subType") == "anonymous"}
+        if {"consent-required", "scope"} - providers:
+            raise ValueError(
+                "Configure Keycloak's anonymous Consent Required and Full Scope Disabled registration policies first; this helper does not enable DCR"
+            )
+        allowed = [
+            c
+            for c in components
+            if c.get("providerId") == "allowed-client-templates" and c.get("subType") == "anonymous"
+        ]
+        if len(allowed) > 1:
+            raise ValueError(
+                "Multiple anonymous Allowed Client Scopes policies exist; review them before configuration"
+            )
+        if allowed and "openid" not in (allowed[0].get("config") or {}).get(
+            "allowed-client-scopes", []
+        ):
+            raise ValueError(
+                "The existing anonymous scope allow-list does not permit openid. Configure the realm's OIDC/DCR prerequisites first; no Sandbox entries changed"
+            )
     optional = api("default-optional-client-scopes")
     existing_mappers = (
         api(f"client-scopes/{current['id']}/protocol-mappers/models") if current else []
@@ -227,7 +231,7 @@ def configure(api, resource, scope=SCOPE, *, apply=False):
                 )
     if current is None or not any(s["id"] == current["id"] for s in optional):
         path = "default-optional-client-scopes/" + (current["id"] if current else "")
-        change(f"Make {scope} optional for newly registered clients", path, "PUT")
+        change(f"Make {scope} optional for new OAuth clients", path, "PUT")
     if allowed:
         policy = allowed[0]
         config = policy.get("config") or {}
@@ -254,6 +258,11 @@ def main():
     parser.add_argument("--resource-url", required=True, help="Exact public Sandbox MCP URL")
     parser.add_argument("--scope", default=SCOPE)
     parser.add_argument(
+        "--configure-dcr",
+        action="store_true",
+        help="Also check existing DCR prerequisites and add the scope to its existing allow-list; does not enable DCR",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Apply the listed changes; default is read-only preview",
@@ -263,16 +272,18 @@ def main():
     metadata = api.request(api.issuer + "/.well-known/openid-configuration")
     if metadata.get("issuer") != api.issuer:
         raise ValueError("Discovery issuer does not match --issuer")
-    if not metadata.get("registration_endpoint") or "S256" not in metadata.get(
-        "code_challenge_methods_supported", []
-    ):
-        raise ValueError(
-            "Issuer must advertise DCR and S256 for connection by URL; configure the provider first"
-        )
+    if "S256" not in metadata.get("code_challenge_methods_supported", []):
+        raise ValueError("Issuer must advertise S256 PKCE for authenticated MCP")
+    if args.configure_dcr and not metadata.get("registration_endpoint"):
+        raise ValueError("--configure-dcr requires the issuer to advertise a registration_endpoint")
     jwks = https_url(metadata["jwks_uri"])
     api.login()
-    changes = configure(api, args.resource_url, args.scope, apply=args.apply)
-    if args.apply and configure(api, args.resource_url, args.scope):
+    changes = configure(
+        api, args.resource_url, args.scope, apply=args.apply, configure_dcr=args.configure_dcr
+    )
+    if args.apply and configure(
+        api, args.resource_url, args.scope, configure_dcr=args.configure_dcr
+    ):
         raise ValueError("Setup is incomplete; rerun the preview to inspect remaining changes")
     print("Applied:" if args.apply else "Preview (no configuration writes):")
     for change in changes:
@@ -292,7 +303,7 @@ def main():
     if not args.apply:
         print("\nRerun with --apply to make the listed changes.")
     print(
-        "Existing clients keep their current assignments. Reconnect with a newly registered MCP client, or attach the scope to an existing client manually."
+        "Use pre-registration, CIMD or optional DCR as supported by your client and issuer. Existing clients keep their assignments; attach this scope to them explicitly if needed."
     )
 
 

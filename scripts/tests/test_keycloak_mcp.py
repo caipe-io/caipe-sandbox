@@ -1,7 +1,10 @@
 import copy
 import importlib.util
+import io
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 
 SPEC = importlib.util.spec_from_file_location(
@@ -10,6 +13,7 @@ SPEC = importlib.util.spec_from_file_location(
 setup = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(setup)
 RESOURCE = "https://sandbox.example.com/apps/sandbox/api/mcp"
+ISSUER = "https://idp.example.com/realms/example"
 
 
 class Realm:
@@ -99,24 +103,21 @@ class Realm:
 
 
 class KeycloakMCPTests(unittest.TestCase):
-    def test_preview_is_read_only_and_reports_scope_allowlist_change(self):
+    def test_default_preview_is_read_only_without_registration_policy_changes(self):
         realm = Realm()
         before = copy.deepcopy(realm.__dict__)
         changes = setup.configure(realm, RESOURCE)
-        self.assertTrue(any("allow-list" in change for change in changes))
+        self.assertTrue(any("Create sandbox:mcp" in change for change in changes))
+        self.assertFalse(any("allow-list" in change for change in changes))
         self.assertEqual(realm.__dict__, before)
 
     def test_apply_preserves_other_applications_and_shared_policies(self):
         realm = Realm()
         other = copy.deepcopy(realm.scopes[0])
-        guards = copy.deepcopy(realm.components[3:])
+        guards = copy.deepcopy(realm.components)
         setup.configure(realm, RESOURCE, apply=True)
         self.assertEqual(realm.scopes[0], other)
-        self.assertEqual(realm.components[3:], guards)
-        self.assertEqual(realm.components[2]["config"]["allow-default-scopes"], ["false"])
-        self.assertEqual(
-            realm.components[2]["config"]["allowed-client-scopes"], ["openid", "other:access", "sandbox:mcp"]
-        )
+        self.assertEqual(realm.components, guards)
         owned = realm.scopes[1]
         self.assertEqual(owned["attributes"][setup.OWNER], RESOURCE)
         audience = next(m for m in owned["protocolMappers"] if m["name"] == "sandbox-audience")
@@ -171,22 +172,112 @@ class KeycloakMCPTests(unittest.TestCase):
         realm = Realm()
         realm.components.pop(0)
         with self.assertRaisesRegex(ValueError, "does not enable DCR"):
-            setup.configure(realm, RESOURCE, apply=True)
+            setup.configure(realm, RESOURCE, apply=True, configure_dcr=True)
         self.assertEqual(realm.writes, [])
 
     def test_missing_openid_registration_permission_fails_before_writes(self):
         realm = Realm()
         realm.components[2]["config"]["allowed-client-scopes"].remove("openid")
         with self.assertRaisesRegex(ValueError, "does not permit openid"):
-            setup.configure(realm, RESOURCE, apply=True)
+            setup.configure(realm, RESOURCE, apply=True, configure_dcr=True)
         self.assertEqual(realm.writes, [])
 
     def test_absent_scope_allowlist_is_not_replaced_with_a_new_shared_policy(self):
         realm = Realm()
         realm.components.pop(2)
         before = copy.deepcopy(realm.components)
+        setup.configure(realm, RESOURCE, apply=True, configure_dcr=True)
+        self.assertEqual(realm.components, before)
+
+    def test_default_setup_never_reads_or_writes_registration_policies(self):
+        realm = Realm()
+        realm.components = []
+
+        def api(path, method="GET", data=None):
+            self.assertFalse(
+                path.startswith("components"), "Registration policies are outside default setup"
+            )
+            return realm(path, method, data)
+
+        setup.configure(api, RESOURCE, apply=True)
+        self.assertEqual(setup.configure(api, RESOURCE, apply=True), [])
+        self.assertEqual(realm.components, [])
+
+    def test_dcr_opt_in_previews_and_updates_only_the_existing_scope_allowlist(self):
+        realm = Realm()
+        before = copy.deepcopy(realm.__dict__)
+        changes = setup.configure(realm, RESOURCE, configure_dcr=True)
+        self.assertTrue(any("allow-list" in change for change in changes))
+        self.assertEqual(realm.__dict__, before)
+        setup.configure(realm, RESOURCE, apply=True, configure_dcr=True)
+        self.assertEqual(realm.components[:2], before["components"][:2])
+        self.assertEqual(realm.components[3:], before["components"][3:])
+        self.assertEqual(realm.components[2]["config"]["allow-default-scopes"], ["false"])
+        self.assertEqual(
+            realm.components[2]["config"]["allowed-client-scopes"],
+            ["openid", "other:access", "sandbox:mcp"],
+        )
+        writes = list(realm.writes)
+        self.assertEqual(setup.configure(realm, RESOURCE, apply=True, configure_dcr=True), [])
+        self.assertEqual(realm.writes, writes)
+
+    def test_missing_openid_in_dcr_policy_does_not_block_default_setup(self):
+        realm = Realm()
+        realm.components[2]["config"]["allowed-client-scopes"].remove("openid")
+        before = copy.deepcopy(realm.components)
         setup.configure(realm, RESOURCE, apply=True)
         self.assertEqual(realm.components, before)
+
+    def test_cli_accepts_discovery_without_dcr_for_pre_registration_or_cimd(self):
+        for cimd in (False, True):
+            with self.subTest(cimd=cimd):
+                api = self.issuer(cimd=cimd)
+                self.run_cli(api, "--apply")
+                self.assertTrue(api.logged_in)
+                self.assertEqual(len(api.scopes), 2)
+                self.assertFalse(any(path.startswith("components") for path, method in api.writes))
+
+    def test_cli_dcr_opt_in_requires_registration_metadata_before_writes(self):
+        api = self.issuer()
+        with self.assertRaisesRegex(ValueError, "registration_endpoint"):
+            self.run_cli(api, "--configure-dcr", "--apply")
+        self.assertFalse(api.logged_in)
+        self.assertEqual(api.writes, [])
+
+    def test_cli_still_requires_s256_with_every_registration_method(self):
+        api = self.issuer()
+        api.metadata["code_challenge_methods_supported"] = ["plain"]
+        with self.assertRaisesRegex(ValueError, "S256 PKCE"):
+            self.run_cli(api, "--apply")
+        self.assertFalse(api.logged_in)
+        self.assertEqual(api.writes, [])
+
+    def issuer(self, *, cimd=False):
+        api = Realm()
+        api.issuer = ISSUER
+        api.metadata = {
+            "issuer": ISSUER,
+            "jwks_uri": ISSUER + "/protocol/openid-connect/certs",
+            "code_challenge_methods_supported": ["S256"],
+            "client_id_metadata_document_supported": cimd,
+        }
+        api.logged_in = False
+
+        def login():
+            api.logged_in = True
+
+        api.login = login
+        api.request = lambda url: copy.deepcopy(api.metadata)
+        return api
+
+    def run_cli(self, api, *arguments):
+        argv = ["configure-mcp.py", "--issuer", ISSUER, "--resource-url", RESOURCE, *arguments]
+        with (
+            patch.object(setup, "Keycloak", return_value=api),
+            patch("sys.argv", argv),
+            redirect_stdout(io.StringIO()),
+        ):
+            setup.main()
 
     def test_invalid_urls_and_reserved_scopes_do_not_write(self):
         for url, scope in (
