@@ -24,6 +24,10 @@ The portal and MCP can share an identity provider, but use separate authenticati
 Portal sign-in does not authorize an external agent. Neither flow signs tools inside a micro VM
 into Claude, Codex or another service.
 
+MCP client identification can use pre-registration, CIMD or optional DCR. See the
+[registration-method comparison](mcp-authentication.md#choose-a-client-registration-method)
+before enabling an issuer's registration features.
+
 Sandbox enforces its own roles, ownership, namespace sharing and resource controls after sign-in.
 Use the same enterprise-controlled email identity across both flows: email identifies sandbox owners.
 

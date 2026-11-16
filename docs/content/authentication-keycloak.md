@@ -75,7 +75,9 @@ Configure this at the issuer; no broker code is needed inside Sandbox.
 
 The portal's confidential browser client is not an external agent client. Use the
 [Keycloak MCP helper](mcp-authentication.md#keycloak-helper) to configure `sandbox:mcp`, its audience
-and token claims. Agent clients then use the realm's approved OAuth registration/consent flow.
+and token claims. Default resource setup does not require DCR. Choose pre-registration, CIMD
+(if supported by your Keycloak version and agent), or optional DCR, and configure user consent.
+Use the helper's `--configure-dcr` option only for an existing DCR deployment.
 
 Keep the same canonical owner email across browser and MCP identities. Finish the
 [portal checks](authentication.md#4-verify-before-admitting-users) and
