@@ -22,8 +22,8 @@ class MCPPolicy(BaseModel):
     issuer: str = ""
     jwks_url: str = ""
     algorithms: list[str] = Field(default_factory=lambda: ["RS256"])
-    read_scope: str = "sandbox:read"
-    execute_scope: str = "sandbox:exec"
+    read_scope: str = "sandbox:mcp"
+    execute_scope: str = "sandbox:mcp"
     identity: OIDCPolicy = Field(
         default_factory=lambda: OIDCPolicy(default_role="user")
     )
@@ -33,6 +33,10 @@ class MCPPolicy(BaseModel):
     output_bytes: int = Field(default=1048576, ge=4096, le=16777216)
     retention_seconds: int = Field(default=300, ge=30, le=3600)
     docs_url: str = ""
+
+    @property
+    def required_scopes(self):
+        return list(dict.fromkeys((self.read_scope, self.execute_scope)))
 
     @model_validator(mode="after")
     def validate_urls(self):

@@ -48,7 +48,7 @@ def access(email=OWNER, **changes):
         "email_verified": True,
         "iat": int(time.time()),
         "exp": int(time.time()) + 300,
-        "scope": "sandbox:read sandbox:exec",
+        "scope": "sandbox:mcp",
         **changes,
     }
     return jwt.encode(claims, KEY, algorithm="RS256", headers={"kid": "test"})
@@ -114,7 +114,7 @@ class LocalExecution:
         self.process.stderr.close()
 
 
-def fixture_app(**changes):
+def fixture_app(*, browser_mode=None, **changes):
     policy = {
         "enabled": True,
         "resource_url": URL,
@@ -130,6 +130,15 @@ def fixture_app(**changes):
         mcp_policy=json.dumps(policy),
         reconcile_interval_seconds=0,
     )
+    if browser_mode:
+        settings = replace(
+            settings,
+            auth_mode=browser_mode,
+            origin="https://sandbox.example.com",
+            oidc_policy=json.dumps({"issuer": "https://login.example.com", "client_id": "portal", "default_role": "user"}),
+            oidc_client_secret="test-oidc-client-secret",
+            caipe_verification_key="test-hosted-app-key-" * 3,
+        )
     kube = Kubernetes()
     store = Store(
         settings,
@@ -140,9 +149,7 @@ def fixture_app(**changes):
     )
     sandbox = store.create(OWNER)
     identity = str(sandbox.record.id)
-    store.configure_mcp(
-        identity, OWNER, MCPConfiguration(enabled=True), sandbox.record.revision
-    )
+    store.configure_mcp(identity, OWNER, MCPConfiguration(enabled=True), sandbox.record.revision)
     created = []
 
     def execution(sandbox, **kwargs):
@@ -151,18 +158,12 @@ def fixture_app(**changes):
             created.append(stream)
             return stream
 
-        return ExecutionTarget(
-            ("test", identity), sandbox.scope, sandbox.uid, connector
-        )
+        return ExecutionTarget(("test", identity), sandbox.scope, sandbox.uid, connector)
 
     store.integrations.execution = execution
     app = create_app(settings, store, Omnigent())
     original = app.state.mcp.verifier
-    original.client = httpx.AsyncClient(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json={"keys": [PUBLIC]})
-        )
-    )
+    original.client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"keys": [PUBLIC]})))
     return app, store, kube, identity, created
 
 
@@ -300,14 +301,10 @@ def test_invalid_tokens_fail_closed_without_browser_fallback(changes):
 def test_discovery_and_missing_bearer():
     app, *_ = fixture_app()
     with TestClient(app) as browser:
-        metadata = browser.get(
-            "http://localhost/.well-known/oauth-protected-resource/agent-sandbox-portal/api/mcp"
-        )
+        metadata = browser.get("http://localhost/.well-known/oauth-protected-resource/agent-sandbox-portal/api/mcp")
         assert metadata.status_code == 200 and metadata.json()["resource"] == URL
-        assert (
-            browser.post(URL, headers={"Cookie": "session=alice"}, json={}).status_code
-            == 401
-        )
+        assert metadata.json()["scopes_supported"] == ["sandbox:mcp"]
+        assert browser.post(URL, headers={"Cookie": "session=alice"}, json={}).status_code == 401
 
 
 def test_sharing_opt_in_immutable_ids_and_role_checks():
@@ -403,3 +400,33 @@ def test_operator_configuration_is_strict(change):
                 **change,
             }
         )
+
+
+@pytest.mark.parametrize("browser_mode", ["oidc", "caipe"])
+def test_mcp_uses_its_own_issuer_in_both_browser_login_modes(browser_mode):
+    async def scenario():
+        app, _, _, identity, _ = fixture_app(browser_mode=browser_mode)
+        async with app.router.lifespan_context(app):
+
+            async def commands(client):
+                await client.initialize()
+                result = await client.call_tool("run_command", {"sandbox_id": identity, "command": "printf independent"})
+                assert result.structured_content["stdout"] == "independent"
+
+            await call_client(app, access(), commands)
+
+    asyncio.run(scenario())
+
+
+def test_explicit_distinct_scopes_remain_supported():
+    async def scenario():
+        app, *_ = fixture_app(read_scope="custom:read", execute_scope="custom:exec")
+        async with app.router.lifespan_context(app):
+
+            async def listing(client):
+                await client.initialize()
+                assert (await client.call_tool("list_sandboxes", {})).is_error is False
+
+            await call_client(app, access(scope="custom:read custom:exec"), listing)
+
+    asyncio.run(scenario())

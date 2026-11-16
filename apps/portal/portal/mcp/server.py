@@ -90,7 +90,7 @@ class MCPService:
             auth=AuthSettings(
                 issuer_url=self.policy.issuer,
                 resource_server_url=self.policy.resource_url,
-                required_scopes=[self.policy.read_scope, self.policy.execute_scope],
+                required_scopes=self.policy.required_scopes,
                 validate_token_resource=True,
             ),
         )

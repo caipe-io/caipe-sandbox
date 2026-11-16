@@ -819,12 +819,12 @@
           "type": "array"
         },
         "read_scope": {
-          "default": "sandbox:read",
+          "default": "sandbox:mcp",
           "title": "Read Scope",
           "type": "string"
         },
         "execute_scope": {
-          "default": "sandbox:exec",
+          "default": "sandbox:mcp",
           "title": "Execute Scope",
           "type": "string"
         },
