@@ -106,6 +106,8 @@ upgrade procedure; enabling a VM does not restart its Pod or change its native s
 - **Cancellation:** the wrapper signals its owned process group and escalates if needed. A request
   acknowledgement is not proof of termination; check the returned exit status. A known exit code of 124
   is used by the wrapper for its execution deadline; command-specific exit codes still need interpretation.
+  On restricted Linux runtimes, it uses individually targeted signals with `/proc` identity checks.
+  Processes that detach into another session need their own shutdown or service management.
 - **Opt-out/revocation:** further MCP calls are blocked; active execution attachments close after the
   access recheck. Closing an attachment does not guarantee termination in every failure condition.
 - **Retention/output:** completed output expires; bounded buffers explicitly report truncation. Jobs
