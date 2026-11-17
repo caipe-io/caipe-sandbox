@@ -70,6 +70,12 @@ It does not require a DCR endpoint or read/change anonymous registration policie
 issuer, public signing keys and advertised S256 PKCE support. Configure client registration,
 client consent and access policies through your issuer's supported method.
 
+If the admin API is private, add `--admin-url https://keycloak-admin.example.com` or use
+`--admin-url http://127.0.0.1:18080` with your existing private port-forward. Supply the Keycloak
+base URL, including any deployment prefix such as `/auth`, rather than `/admin/realms/...`.
+Discovery and token validation still use the public `--issuer`; the admin API need not be exposed
+on the public login hostname. HTTP is permitted only on loopback.
+
 Use a short-lived administrator token permitted to manage the realm's client scopes and default scope
 assignments. Read it without placing it in shell history:
 

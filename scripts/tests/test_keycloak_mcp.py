@@ -299,6 +299,64 @@ class KeycloakMCPTests(unittest.TestCase):
             )
         )
 
+    def test_private_admin_url_keeps_the_public_issuer(self):
+        api = setup.Keycloak(ISSUER, admin_url="https://admin.example.com/auth/")
+        self.assertEqual(api.issuer, ISSUER)
+        with patch.object(api, "request", return_value=[]) as request:
+            api("client-scopes")
+        request.assert_called_once_with(
+            "https://admin.example.com/auth/admin/realms/example/client-scopes",
+            "GET",
+            None,
+            authenticated=True,
+        )
+
+    def test_admin_login_uses_private_endpoint_with_loopback_http(self):
+        api = setup.Keycloak(ISSUER, admin_url="http://127.0.0.1:18080")
+        with (
+            patch.dict(
+                setup.os.environ,
+                {
+                    "KEYCLOAK_ADMIN_USERNAME": "operator",
+                    "KEYCLOAK_ADMIN_PASSWORD": "example-only",
+                    "KEYCLOAK_ADMIN_REALM": "master",
+                },
+            ),
+            patch.object(api, "request", return_value={"access_token": "example-token"}) as request,
+        ):
+            api.login()
+        self.assertEqual(
+            request.call_args.args[0],
+            "http://127.0.0.1:18080/realms/master/protocol/openid-connect/token",
+        )
+        self.assertEqual(api.issuer, ISSUER)
+
+    def test_private_admin_url_rejects_remote_http_and_embedded_credentials(self):
+        for url in (
+            "http://admin.example.com",
+            "https://operator:password@admin.example.com",
+            "https://admin.example.com?token=example",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                setup.Keycloak(ISSUER, admin_url=url)
+
+    def test_cli_passes_admin_url_without_changing_discovery(self):
+        api = self.issuer()
+        with patch.object(setup, "Keycloak", return_value=api) as constructor:
+            argv = [
+                "configure-mcp.py",
+                "--issuer",
+                ISSUER,
+                "--admin-url",
+                "http://127.0.0.1:18080",
+                "--resource-url",
+                RESOURCE,
+            ]
+            with patch("sys.argv", argv), redirect_stdout(io.StringIO()):
+                setup.main()
+        self.assertEqual(constructor.call_args.kwargs["admin_url"], "http://127.0.0.1:18080")
+        self.assertEqual(api.issuer, ISSUER)
+
 
 if __name__ == "__main__":
     unittest.main()
