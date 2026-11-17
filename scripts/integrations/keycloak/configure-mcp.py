@@ -43,11 +43,13 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 class Keycloak:
-    def __init__(self, issuer, token=None):
+    def __init__(self, issuer, token=None, *, admin_url=None):
         self.issuer = https_url(issuer)
         self.base, separator, realm = self.issuer.rpartition("/realms/")
         if not separator or not re.fullmatch(r"[A-Za-z0-9_-]+", realm):
             raise ValueError("Issuer must end in /realms/<realm-name>")
+        if admin_url:
+            self.base = https_url(admin_url)
         self.root = self.base + "/admin/realms/" + realm + "/"
         self.token = token
         self.opener = build_opener(NoRedirect())
@@ -255,6 +257,10 @@ def configure(api, resource, scope=SCOPE, *, apply=False, configure_dcr=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--issuer", required=True, help="Public Keycloak realm issuer URL")
+    parser.add_argument(
+        "--admin-url",
+        help="Keycloak base URL for administrator login/API; defaults to the issuer base",
+    )
     parser.add_argument("--resource-url", required=True, help="Exact public Sandbox MCP URL")
     parser.add_argument("--scope", default=SCOPE)
     parser.add_argument(
@@ -268,7 +274,7 @@ def main():
         help="Apply the listed changes; default is read-only preview",
     )
     args = parser.parse_args()
-    api = Keycloak(args.issuer, os.environ.get("KEYCLOAK_ADMIN_TOKEN"))
+    api = Keycloak(args.issuer, os.environ.get("KEYCLOAK_ADMIN_TOKEN"), admin_url=args.admin_url)
     metadata = api.request(api.issuer + "/.well-known/openid-configuration")
     if metadata.get("issuer") != api.issuer:
         raise ValueError("Discovery issuer does not match --issuer")
