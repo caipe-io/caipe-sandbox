@@ -43,7 +43,12 @@ module.exports = {
         },
         "packaging",
         "scaling",
-        "mcp",
+        {
+          type: "category",
+          label: "MCP",
+          link: { type: "doc", id: "mcp" },
+          items: ["mcp-clients"],
+        },
         "contributing",
       ],
     },
