@@ -21,8 +21,15 @@ not make a private endpoint reachable to ChatGPT.
 
 ## Try it
 
-Start a new chat, type **@** and select **caipe-sandboxes**. Ask it to list your enabled sandboxes,
-then run `pwd` using the immutable **Sandbox ID** copied from the portal. Check the ID in its result.
+Start a new chat, type **@** and select **caipe-sandboxes**, then send:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+ChatGPT should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+Then ask it to run `pwd` using the immutable **Sandbox ID** copied from the portal.
+Check the ID in its result.
 
 [Switch environments or troubleshoot](mcp-clients.md#switch-between-dev-and-production) ·
 [Official ChatGPT custom MCP setup](https://developers.openai.com/plugins/deploy/connect-chatgpt#add-the-mcp-server)

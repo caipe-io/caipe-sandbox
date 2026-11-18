@@ -25,7 +25,14 @@ the connection once.
 
 ## Try it
 
-Ask Codex to use **caipe-sandboxes** to list your enabled sandboxes. Select the immutable
+Send this prompt to Codex:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+Codex should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+Select the immutable
 **Sandbox ID** you copied from the portal, then ask it to run `pwd` there.
 The result should contain that same ID and the remote command output.
 

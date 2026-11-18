@@ -19,7 +19,14 @@ endpoint must be reachable from there.
 
 ## Try it
 
-Ask Claude to use **caipe-sandboxes** to list your enabled sandboxes. Give it the immutable
+Send this prompt to Claude:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+Claude should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+Give it the immutable
 **Sandbox ID** copied from the portal, then ask it to run `pwd` there and check the returned ID.
 
 [Switch environments or troubleshoot](mcp-clients.md#switch-between-dev-and-production) ·
