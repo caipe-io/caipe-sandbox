@@ -1,8 +1,9 @@
 ---
-title: Connect Codex & Claude
+title: Connect your agent
 ---
 
-Use the Codex or Claude app, or their CLI clients, to run commands in a remote micro VM through MCP.
+Connect an MCP client to run commands in a remote micro VM. Enable your sandbox, then follow
+the guide for your client below.
 One connection can discover all MCP-enabled sandboxes you have shell permission to use.
 
 ## 1. Enable your sandbox
@@ -19,73 +20,26 @@ _Example with sample data and a local preview URL. Copy the values from your own
 Your operator must first enable MCP and [configure OAuth](mcp-authentication.md).
 You sign in with your own account; there is no need to copy a browser cookie or bearer token.
 
-## 2. Connect from the app
+## 2. Choose your client
 
-### Codex app
+| Client                    | Setup guide                                   |
+| ------------------------- | --------------------------------------------- |
+| Codex in a terminal       | [Connect via Codex CLI](mcp-codex-cli.md)     |
+| Claude Code in a terminal | [Connect via Claude CLI](mcp-claude-cli.md)   |
+| ChatGPT                   | [Connect via ChatGPT App](mcp-chatgpt-app.md) |
+| Codex desktop             | [Connect via Codex App](mcp-codex-app.md)     |
+| Claude desktop or web     | [Connect via Claude App](mcp-claude-app.md)   |
 
-1. Open **Settings** and find the **MCP servers** or **Integrations and MCP** section.
-2. Add a server named `sandbox-dev`, choose **Streamable HTTP**, and paste the **Server URL**.
-3. Save and authenticate. Complete the browser sign-in and consent prompts.
-4. Start a new chat and check that the Sandbox tools are available.
-
-Codex app and CLI share MCP configuration on the same host; either setup method is enough.
-
-[Official Codex app settings](https://learn.chatgpt.com/docs/developer-settings#integrations-and-mcp)
-
-### Claude app (desktop or web)
-
-1. Open **Customize → Connectors → Add custom connector**.
-2. Name it `sandbox-dev` and paste the **Server URL**.
-3. Choose OAuth sign-in and follow the browser sign-in and consent prompts. If asked for a client
-   registration method, use **Register automatically** when your operator supports DCR; otherwise
-   use the client details they provide.
-4. Enable the connector for your conversation from **+ → Connectors**.
-
-For managed team accounts, an organisation administrator may need to add the connector first.
-Claude's remote connectors connect from Anthropic's servers: the MCP endpoint must be reachable
-from there, even when using the desktop app.
-
-[Official Claude connector setup](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)
-
-<details>
-<summary>Prefer the CLI? Codex CLI and Claude Code</summary>
-
-In your local terminal, set the **Server URL** you copied, replacing this example:
-
-```bash
-export SANDBOX_MCP_URL='https://sandbox.example.com/apps/sandbox/api/mcp'
-```
-
-**Codex CLI:**
-
-```bash
-codex mcp add sandbox-dev --url "$SANDBOX_MCP_URL"
-codex mcp login sandbox-dev --scopes sandbox:mcp
-```
-
-Complete browser sign-in and consent, then start a new session and check `/mcp`.
-`sandbox:mcp` is the default scope; use your operator's scope if it differs.
-
-**Claude Code:**
-
-```bash
-claude mcp add --transport http --scope user sandbox-dev "$SANDBOX_MCP_URL"
-```
-
-Start Claude Code, enter `/mcp`, select **sandbox-dev → Authenticate**, and complete browser sign-in.
-`--scope user` makes the connection available across your local projects, without sharing it with others.
-
-[Codex CLI reference](https://developers.openai.com/codex/mcp) ·
-[Claude Code reference](https://code.claude.com/docs/en/mcp#authenticate-with-remote-mcp-servers)
-
-</details>
+Name the connection **`caipe-sandboxes`** so its tool family is easy to recognise.
+Clients choose their own tool prefixes and may normalise hyphens. Existing saved connections
+keep their client-side names until you rename or re-add them and reconnect.
 
 ## 3. Try a command
 
 Paste this into your agent, replacing the placeholder with the **Sandbox ID** you copied:
 
 ```text
-Use only the sandbox-dev MCP connection to list my enabled sandboxes.
+Use only the caipe-sandboxes MCP connection to list my enabled sandboxes.
 Select sandbox_id <paste Sandbox ID here>.
 Remember this immutable ID and include it in every sandbox tool call.
 Run pwd and uname -a there. Show stdout, stderr and the exit code.
@@ -99,14 +53,15 @@ the returned session ID. See the [available tools](mcp.md#tools).
 
 Keep two connections instead of changing the URL on an authenticated connection:
 
-| Connection     | Server URL                                    |
-| -------------- | --------------------------------------------- |
-| `sandbox-dev`  | Copy from the dev portal's MCP dialog.        |
-| `sandbox-prod` | Copy from the production portal's MCP dialog. |
+| Connection             | Server URL                                    |
+| ---------------------- | --------------------------------------------- |
+| `caipe-sandboxes-dev`  | Copy from the dev portal's MCP dialog.        |
+| `caipe-sandboxes-prod` | Copy from the production portal's MCP dialog. |
 
-Repeat the setup for `sandbox-prod` and sign in separately. Enable MCP on the production VM,
-then select only that connection in your client or disable `sandbox-dev` in its MCP settings.
-Start a new chat and ask it to use only `sandbox-prod`, listing sandboxes before running commands.
+Use these distinct names when connecting to both environments. Repeat the client setup for
+`caipe-sandboxes-prod` and sign in separately. Enable MCP on the production VM, then select only
+that connection or disable `caipe-sandboxes-dev` in your client's MCP settings.
+Start a new chat and ask it to use only `caipe-sandboxes-prod`, listing sandboxes before running commands.
 
 Use the ID from the selected environment. Switching connections does not move a VM or its files;
 dev credentials are not production credentials. Each deployment needs its own

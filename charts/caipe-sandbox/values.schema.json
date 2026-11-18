@@ -801,6 +801,11 @@
           "title": "Resource Url",
           "type": "string"
         },
+        "portal_url": {
+          "default": "",
+          "title": "Portal Url",
+          "type": "string"
+        },
         "issuer": {
           "default": "",
           "title": "Issuer",
