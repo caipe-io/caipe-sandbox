@@ -22,7 +22,14 @@ the connection with other users.
 
 ## Try it
 
-Ask Claude to use **caipe-sandboxes** to list your enabled sandboxes. Give it the immutable
+Send this prompt to Claude Code:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+Claude should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+Give it the immutable
 **Sandbox ID** copied from the portal and ask it to run `pwd` there. Check that the returned ID
 matches your chosen VM.
 

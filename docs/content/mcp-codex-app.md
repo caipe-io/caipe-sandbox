@@ -17,7 +17,14 @@ through the CLI, use that existing entry.
 
 ## Try it
 
-Ask the agent to use **caipe-sandboxes** to list your enabled sandboxes. Give it your immutable
+Send this prompt to the agent:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+The agent should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+Give it your immutable
 **Sandbox ID** and ask it to run `pwd` there. Check that its result includes that same ID.
 
 [Switch environments or troubleshoot](mcp-clients.md#switch-between-dev-and-production) ·

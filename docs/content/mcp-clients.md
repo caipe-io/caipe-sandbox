@@ -34,9 +34,18 @@ Name the connection **`caipe-sandboxes`** so its tool family is easy to recognis
 Clients choose their own tool prefixes and may normalise hyphens. Existing saved connections
 keep their client-side names until you rename or re-add them and reconnect.
 
-## 3. Try a command
+## 3. Verify the connection
 
-Paste this into your agent, replacing the placeholder with the **Sandbox ID** you copied:
+Send this prompt to your agent:
+
+```text
+Can you list all the CAIPE sandboxes?
+```
+
+The agent should use **caipe-sandboxes** to list the MCP-enabled sandboxes you can access.
+An empty list is valid if none are enabled for your account.
+
+To also check remote execution, use the following prompt with your copied **Sandbox ID**:
 
 ```text
 Use only the caipe-sandboxes MCP connection to list my enabled sandboxes.
