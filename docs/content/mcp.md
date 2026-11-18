@@ -5,7 +5,7 @@ title: Connect agents with MCP
 An external MCP client can run commands in a selected sandbox. The MCP server runs in the portal;
 the agent stays outside the micro VM. Commands follow its existing runtime and network policies.
 
-For client setup, follow [Connect Codex & Claude Code](mcp-clients.md).
+For client setup, follow [Connect Codex & Claude](mcp-clients.md).
 
 ## Enable a sandbox
 
