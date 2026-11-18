@@ -82,9 +82,26 @@ class MCPService:
         self.policy.validate_settings(settings)
         self.verifier = TokenVerifier(self.policy)
         self.sessions = None
+        message = (
+            "CAIPE Sandbox has a web portal where users can manage sandbox lifecycle, "
+            "permitted configuration and resources, sharing, and MCP access. "
+            "These MCP tools operate in existing authorized sandboxes; portal settings "
+            "are managed by the user in that portal. "
+        )
+        message += (
+            f"Direct the user to {self.policy.portal_url} to manage the same sandbox."
+            if self.policy.portal_url
+            else "The portal URL is not configured. Ask the user to open their CAIPE Sandbox "
+            "portal, directly or through their host application, to manage the same sandbox. "
+            "Do not guess or invent a portal URL."
+        )
+        self.management = {
+            "portal_url": self.policy.portal_url or None,
+            "message": message,
+        }
         self.server = MCPServer(
-            "CAIPE Sandbox",
-            instructions=INSTRUCTIONS,
+            "caipe-sandboxes",
+            instructions=INSTRUCTIONS + "\n\n" + message,
             token_verifier=self.verifier,
             middleware=[identity_results],
             auth=AuthSettings(
@@ -201,6 +218,9 @@ class MCPService:
                 "cancel", sandbox_id=sandbox_id, session_id=session_id
             )
 
+    def response(self, data, *, error=False):
+        return result({**data, "management": self.management}, error=error)
+
     async def tool(self, action, sandbox_id=None, session_id=None, **arguments):
         identity = {"sandbox_id": sandbox_id} if sandbox_id is not None else {}
         if session_id is not None:
@@ -244,7 +264,7 @@ class MCPService:
                         rows.append(self.describe(sandbox))
                     except HTTPException:
                         continue
-                return result(
+                return self.response(
                     {
                         "sandboxes": rows,
                         "next_cursor": str(records[-1].id)
@@ -261,7 +281,7 @@ class MCPService:
                 shell=action != "get",
             )
             if action == "get":
-                return result(
+                return self.response(
                     {
                         **self.describe(sandbox),
                         "shell": "/bin/sh",
@@ -309,18 +329,18 @@ class MCPService:
                     if arguments["run_in_background"]
                     else await self.sessions.foreground(session)
                 )
-                return result(data, error=data["state"] == "unknown")
+                return self.response(data, error=data["state"] == "unknown")
             data = await self.follow(
                 actor, token, sandbox_id, session_id, action, arguments
             )
-            return result(
+            return self.response(
                 data,
                 error=data.get("state") == "unknown" or data.get("is_error", False),
             )
         except ToolFailure as exc:
-            return result({**exc.result, **identity}, error=True)
+            return self.response({**exc.result, **identity}, error=True)
         except (ValueError, TypeError):
-            return result(
+            return self.response(
                 {
                     **identity,
                     "code": "INVALID_ARGUMENT",
@@ -331,7 +351,7 @@ class MCPService:
                 error=True,
             )
         except HTTPException as exc:
-            return result(
+            return self.response(
                 {
                     **identity,
                     "code": "SANDBOX_UNAVAILABLE",
@@ -343,7 +363,7 @@ class MCPService:
             )
         except Exception:
             event("mcp_tool_failed", category="audit", **identity, outcome="error")
-            return result(
+            return self.response(
                 {
                     **identity,
                     "code": "EXECUTION_UNCONFIRMED"

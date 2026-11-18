@@ -307,20 +307,36 @@ export const groups = [
 ];
 
 const notes = {
-  "record.mcp.enabled": "Owner/admin opt-in for MCP access, disabled initially. Existing sharing, role and shell permissions still apply; this is not a native Pod field.",
-  "mcp.enabled": "Enable the authenticated Streamable HTTP MCP server. Each sandbox still requires separate owner/admin opt-in.",
-  "mcp.resource_url": "Public canonical MCP URL and exact OAuth token audience. Its path must equal settings.basePath plus /api/mcp.",
-  "mcp.issuer": "Trusted OAuth authorization-server issuer. Tokens must match this issuer exactly.",
-  "mcp.jwks_url": "Operator-configured HTTPS endpoint supplying public JWT verification keys. Loopback HTTP is allowed for development.",
-  "mcp.algorithms": "Allowed asymmetric JWT signature algorithms; shared-secret JWTs are not accepted by MCP.",
-  "mcp.read_scope": "Defaults to sandbox:mcp, shared with execute_scope. Both configured scopes are required if an operator uses distinct values.",
-  "mcp.execute_scope": "Defaults to sandbox:mcp. MCP scope consent never replaces existing sandbox shell authorization.",
-  "mcp.max_sessions": "Maximum active MCP command sessions per portal replica; excess launches fail before starting.",
-  "mcp.max_timeout_seconds": "Largest accepted remote command deadline, in seconds.",
-  "mcp.foreground_wait_seconds": "Maximum foreground response wait before returning a live session handle. This does not end the remote command.",
-  "mcp.output_bytes": "Bounded retained stdout/stderr bytes per live session. Reads report truncation explicitly.",
-  "mcp.retention_seconds": "Completed output retention in seconds, subject to the replica's bounded session count.",
-  "mcp.docs_url": "Optional HTTPS onboarding link shown in the MCP confirmation dialog.",
+  "record.mcp.enabled":
+    "Owner/admin opt-in for MCP access, disabled initially. Existing sharing, role and shell permissions still apply; this is not a native Pod field.",
+  "mcp.enabled":
+    "Enable the authenticated Streamable HTTP MCP server. Each sandbox still requires separate owner/admin opt-in.",
+  "mcp.resource_url":
+    "Public canonical MCP URL and exact OAuth token audience. Its path must equal settings.basePath plus /api/mcp.",
+  "mcp.portal_url":
+    "Optional user-facing HTTPS management URL, including an embedded host-app path. Agents receive it in MCP instructions and tool results. When omitted, guidance explains portal management without guessing a URL. Loopback HTTP is allowed for development.",
+  "mcp.issuer":
+    "Trusted OAuth authorization-server issuer. Tokens must match this issuer exactly.",
+  "mcp.jwks_url":
+    "Operator-configured HTTPS endpoint supplying public JWT verification keys. Loopback HTTP is allowed for development.",
+  "mcp.algorithms":
+    "Allowed asymmetric JWT signature algorithms; shared-secret JWTs are not accepted by MCP.",
+  "mcp.read_scope":
+    "Defaults to sandbox:mcp, shared with execute_scope. Both configured scopes are required if an operator uses distinct values.",
+  "mcp.execute_scope":
+    "Defaults to sandbox:mcp. MCP scope consent never replaces existing sandbox shell authorization.",
+  "mcp.max_sessions":
+    "Maximum active MCP command sessions per portal replica; excess launches fail before starting.",
+  "mcp.max_timeout_seconds":
+    "Largest accepted remote command deadline, in seconds.",
+  "mcp.foreground_wait_seconds":
+    "Maximum foreground response wait before returning a live session handle. This does not end the remote command.",
+  "mcp.output_bytes":
+    "Bounded retained stdout/stderr bytes per live session. Reads report truncation explicitly.",
+  "mcp.retention_seconds":
+    "Completed output retention in seconds, subject to the replica's bounded session count.",
+  "mcp.docs_url":
+    "Optional HTTPS onboarding link shown in the MCP confirmation dialog.",
   id: "Stable catalog identifier, distinct from a sandbox ID or Kubernetes UID. IDs must be unique in the catalog.",
   title: "Friendly profile title shown in the selection dropdown.",
   description: "Optional explanatory text shown with the profile definition.",
@@ -630,12 +646,15 @@ const envValues = {
   BASE_PATH: "settings.basePath",
   POD_UID:
     "Kubernetes downward API injects this Pod's UID for log/trace resource identity. It is not a sandbox or Linux UID.",
-  POD_IP: "Kubernetes downward API injects the portal Pod IP for authenticated MCP session forwarding between replicas.",
-  MCP_POLICY: "mcp: authenticated MCP resource, trusted issuer, identity mapping and bounded live-session limits.",
+  POD_IP:
+    "Kubernetes downward API injects the portal Pod IP for authenticated MCP session forwarding between replicas.",
+  MCP_POLICY:
+    "mcp: authenticated MCP resource, trusted issuer, identity mapping and bounded live-session limits.",
 };
 
 const stateNotes = {
-  "record.mcp.enabled": "Owner/admin opt-in for MCP access. Disabled initially; existing sharing, role and shell permissions still apply.",
+  "record.mcp.enabled":
+    "Owner/admin opt-in for MCP access. Disabled initially; existing sharing, role and shell permissions still apply.",
   "record.id":
     "Portal UUID for a logical sandbox. Distinct from its friendly name, Kubernetes UID and in-guest Linux UID.",
   "record.name":

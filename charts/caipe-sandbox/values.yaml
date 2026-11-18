@@ -135,6 +135,7 @@ defaultProfile: engineering
 mcp:
   enabled: false
   resource_url: ""  # Canonical HTTPS URL ending in settings.basePath + /api/mcp.
+  portal_url: ""  # Optional user-facing management URL, including any host-app path.
   issuer: ""
   jwks_url: ""
   algorithms: [RS256]

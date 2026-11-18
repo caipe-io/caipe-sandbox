@@ -664,6 +664,11 @@
       "default": ""
     },
     {
+      "path": "mcp.portal_url",
+      "type": "string",
+      "default": ""
+    },
+    {
       "path": "mcp.issuer",
       "type": "string",
       "default": ""

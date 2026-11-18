@@ -19,6 +19,7 @@ class MCPPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool = Field(default=False, strict=True)
     resource_url: str = ""
+    portal_url: str = ""
     issuer: str = ""
     jwks_url: str = ""
     algorithms: list[str] = Field(default_factory=lambda: ["RS256"])
@@ -42,11 +43,14 @@ class MCPPolicy(BaseModel):
     def validate_urls(self):
         if not self.enabled:
             return self
-        for value in (self.resource_url, self.issuer, self.jwks_url):
+        urls = [self.resource_url, self.issuer, self.jwks_url]
+        if self.portal_url:
+            urls.append(self.portal_url)
+        for value in urls:
             parsed = urlsplit(value)
             if (
                 not parsed.hostname
-                or parsed.username
+                or parsed.username is not None
                 or parsed.query
                 or parsed.fragment
                 or any(character.isspace() for character in value)
@@ -59,7 +63,8 @@ class MCPPolicy(BaseModel):
                 )
             ):
                 raise ValueError(
-                    "MCP resource, issuer and JWKS URLs must use HTTPS (HTTP is allowed on loopback)"
+                    "MCP URLs must use HTTPS without credentials, query or fragment "
+                    "(HTTP is allowed on loopback)"
                 )
             if parsed.port == 0:
                 raise ValueError("MCP URLs require a valid service port")

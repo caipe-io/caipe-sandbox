@@ -5,7 +5,7 @@ title: Connect agents with MCP
 An external MCP client can run commands in a selected sandbox. The MCP server runs in the portal;
 the agent stays outside the micro VM. Commands follow its existing runtime and network policies.
 
-For client setup, follow [Connect Codex & Claude Code](mcp-clients.md).
+For client setup, follow [Connect your agent](mcp-clients.md).
 
 ## Enable a sandbox
 
@@ -60,6 +60,7 @@ settings:
 mcp:
   enabled: true
   resource_url: https://sandbox.example.com/apps/sandbox/api/mcp
+  portal_url: https://portal.example.com/apps/sandbox
   issuer: https://idp.example.com/realms/engineering
   jwks_url: https://idp.example.com/realms/engineering/protocol/openid-connect/certs
   read_scope: sandbox:mcp
@@ -98,6 +99,17 @@ mcp:
 
 The additive metadata migration starts all existing sandboxes disabled. Apply the existing schema
 upgrade procedure; enabling a VM does not restart its Pod or change its native specification.
+
+### Help agents direct users to the portal
+
+Set `mcp.portal_url` to the user-facing management page. For an embedded deployment, use the
+host application's Sandbox page. It can have a different host and path from the MCP endpoint.
+
+MCP instructions and tool results explain that users manage lifecycle, permitted configuration,
+resources, sharing and MCP access in the portal. Results include a `management` object with
+`portal_url` and a helpful `message`. When the URL is omitted, `portal_url` is `null` and the
+message asks the user to open their portal without inventing a link. It does not change access
+or provide an authenticated shortcut.
 
 ## Lifecycle and troubleshooting
 

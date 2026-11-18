@@ -71,6 +71,7 @@ def test_mcp_discovery_and_replica_identity_reach_deployment(tmp_path):
     policy = {
         "enabled": True,
         "resource_url": "https://sandbox.example.com/apps/sandbox/api/mcp",
+        "portal_url": "https://host.example.com/apps/sandbox",
         "issuer": "https://idp.example.com",
         "jwks_url": "https://idp.example.com/jwks",
     }
@@ -91,6 +92,7 @@ def test_mcp_discovery_and_replica_identity_reach_deployment(tmp_path):
         json.loads(env["PORTAL_MCP_POLICY"]["value"])["resource_url"]
         == policy["resource_url"]
     )
+    assert json.loads(env["PORTAL_MCP_POLICY"]["value"])["portal_url"] == policy["portal_url"]
     assert env["PORTAL_POD_IP"]["valueFrom"]["fieldRef"]["fieldPath"] == "status.podIP"
     ingress = next(o for o in resources if o["kind"] == "Ingress")
     assert (

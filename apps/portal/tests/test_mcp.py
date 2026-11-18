@@ -307,6 +307,45 @@ def test_discovery_and_missing_bearer():
         assert browser.post(URL, headers={"Cookie": "session=alice"}, json={}).status_code == 401
 
 
+@pytest.mark.parametrize("portal_url", ["", "https://portal.example.com/host/apps/sandbox"])
+def test_management_context_is_available_without_guessing_a_portal_url(portal_url):
+    async def scenario():
+        app, store, _, identity, created = fixture_app(portal_url=portal_url)
+        async with app.router.lifespan_context(app):
+
+            async def workflow(client):
+                initialized = await client.initialize()
+                assert initialized.server_info.name == "caipe-sandboxes"
+                listing = await client.call_tool("list_sandboxes", {})
+                context = listing.structured_content["management"]
+                assert context["portal_url"] == (portal_url or None)
+                assert context["message"] in initialized.instructions
+                assert "sharing" in context["message"] and "MCP access" in context["message"]
+                if portal_url:
+                    assert portal_url in context["message"]
+                else:
+                    assert "not configured" in context["message"]
+                    assert "Do not guess" in context["message"]
+                    assert "http" not in context["message"]
+                details = await client.call_tool("get_sandbox", {"sandbox_id": identity})
+                assert details.structured_content["management"] == context
+                assert details.structured_content["sandbox_id"] == identity
+                record = store.metadata.get_sandbox(UUID(identity))
+                store.configure_mcp(identity, OWNER, MCPConfiguration(enabled=False), record.revision)
+                empty = await client.call_tool("list_sandboxes", {})
+                assert empty.structured_content["sandboxes"] == []
+                assert empty.structured_content["management"] == context
+                denied = await client.call_tool("get_sandbox", {"sandbox_id": identity})
+                assert denied.is_error
+                assert denied.structured_content["management"] == context
+                assert denied.structured_content["sandbox_id"] == identity
+
+            await call_client(app, access(), workflow)
+            assert created == []
+
+    asyncio.run(scenario())
+
+
 def test_sharing_opt_in_immutable_ids_and_role_checks():
     async def scenario():
         app, store, kube, identity, created = fixture_app()
@@ -387,6 +426,10 @@ def test_portal_owner_confirmation_api_revision_and_no_native_mutation():
         {"resource_url": "http://remote.example/mcp"},
         {"issuer": "https://user:pass@idp.example"},
         {"execute_scope": 'bad"scope'},
+        {"portal_url": "http://portal.example/manage"},
+        {"portal_url": "javascript:alert(1)"},
+        {"portal_url": "https://:password@portal.example/manage"},
+        {"portal_url": "https://portal.example/manage?token=credential"},
     ],
 )
 def test_operator_configuration_is_strict(change):

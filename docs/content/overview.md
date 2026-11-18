@@ -11,6 +11,10 @@ credentials and access the tools they need.
 Developers choose an environment, connect to it and get to work. Platform teams
 control the available configurations, resource limits, access and isolation.
 
+![CAIPE Sandbox portal showing micro VM cards, integration badges, sign-in helpers and terminal access](../static/img/portal-preview.png)
+
+_Example portal with sample data. Your platform team chooses the available profiles and integrations._
+
 ## Why sandbox agents?
 
 Agents become much more capable when they can use a shell, run compilers,
